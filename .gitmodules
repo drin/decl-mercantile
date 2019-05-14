@@ -1,7 +1,3 @@
 [submodule "submodules/ceph-container"]
 	path = submodules/ceph-container
 	url = git@github.com:ceph/ceph-container.git
-[submodule "submodules/h5-rados"]
-	path = submodules/h5-rados
-	url = https://bitbucket.hdfgroup.org/scm/~nfortne2/hdf5_naf.git
-	branch = hdf5_rados
