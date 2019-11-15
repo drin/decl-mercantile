@@ -1,0 +1,65 @@
+#!/usr/bin/env python
+
+import os
+import sys
+
+sys.path.insert(1, '/public/home/akmontan/code/decl-mercantile/python')
+
+# classes
+from single_cell.util import ArgparseBuilder
+from single_cell.datatypes import GeneExpression
+
+# functions
+from single_cell.datatypes import schema_from_gene_expr, gene_expr_as_recordbatch, write_recordbatches
+
+
+# ------------------------------
+# Parse command-line arguments first
+parsed_args, parsed_extra_args = (
+    ArgparseBuilder.with_description('Program for converting between specialized file formats')
+                   .add_input_dir_arg(
+                         required=True
+                        ,help_str='Path to root directory of gene expression in MTX format'
+                    )
+                   .add_input_metadata_file_arg(
+                         required=False
+                        ,help_str='Path to file containing metadata'
+                    )
+                   .add_batch_args(
+                         required=True
+                        ,help_str='Path to file containing metadata'
+                    )
+                   .add_output_file_arg(
+                         required=True
+                        ,help_str='Path to the file resulting from the conversion'
+                    )
+                   .parse_args()
+)
+
+
+# ------------------------------
+if __name__ == '__main__':
+    if os.path.isdir(parsed_args.input_dir):
+        print('>>> parsing gene expression')
+        gene_expr = GeneExpression.from_mtx(parsed_args.input_dir)
+
+        print(gene_expr.expression[:3])
+        print('<<< gene expression parsed')
+
+    if not os.path.isfile(parsed_args.output_file):
+        print('>>> converting data format Arrow')
+        gene_expr_schema   = schema_from_gene_expr(gene_expr)
+        expr_recordbatches = gene_expr_as_recordbatch(gene_expr_schema, gene_expr)
+        print('<<< data format converted')
+
+        print('{} rows in recordbatch'.format(expr_recordbatches.num_rows))
+
+        print('>>> serializing converted data in Arrow format')
+        write_recordbatches(
+            parsed_args.output_file,
+            parsed_args.batch_size,
+            parsed_args.batch_offset,
+            gene_expr_schema,
+            expr_recordbatches,
+        )
+        print('<<< data written in Arrow format')
