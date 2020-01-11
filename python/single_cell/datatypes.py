@@ -60,8 +60,10 @@ SkyhookMetadata = namedtuple('SkyhookMetadata', [
     'METADATA_NUM_ROWS'              ,
 ])
 
+
 def skyhook_dataschema_from_gene_expr(gene_expr_obj, delim='\n'):
-    schema_format = 'col_id type is_key is_nullable col_name;'
+    # TODO: Not yet used
+    # schema_format = 'col_id type is_key is_nullable col_name;'
 
     # 'col_id type is_key is_nullable col_name;'
     # for type, I assume that 12 is the pos of the enum 'SDT_FLOAT'
@@ -85,6 +87,8 @@ def schema_from_gene_expr(gene_expr_obj):
     Function that defines a pyarrow schema using a GeneExpression object.
     """
 
+    # TODO: not yet used
+    '''
     gene_expr_metadata = SkyhookMetadata(
         0,
         0,
@@ -95,11 +99,13 @@ def schema_from_gene_expr(gene_expr_obj):
         'gene_expression',
         gene_expr_obj.expression.shape[0]
     )
+    '''
 
     return pyarrow.schema((
         (cell_id, pyarrow.float64())
         for cell_id in gene_expr_obj.cells
     ))
+
 
 def gene_expr_as_recordbatch(gene_expr_schema, gene_expr_obj):
     expr_data            = gene_expr_obj.expression.toarray()
@@ -158,7 +164,7 @@ class GeneExpression(object):
 
         :path_to_mtx_root: Path to a directory containing: a gene expression matrix in mtx format,
         named 'matrix.mtx'; a list of cell IDs, named 'cells.tsv'; and a list of
-        gene symbols (aka gene names), named 'genes.tsv'. 
+        gene symbols (aka gene names), named 'genes.tsv'.
         """
 
         # TODO this should eventually check for plaintext files too, but for now it assumes gzipped
@@ -170,10 +176,9 @@ class GeneExpression(object):
             sys.stderr.write(err_msg)
             sys.exit(err_msg)
 
-
-        expr_matrix =   MatrixParser.from_path(os.path.join(path_to_mtx_root, 'matrix.mtx'))
+        expr_matrix = MatrixParser.from_path(os.path.join(path_to_mtx_root, 'matrix.mtx'))
         gene_list   = GeneListParser.from_path(os.path.join(path_to_mtx_root, 'genes.tsv'))
-        cells       =   CellIDParser.from_path(os.path.join(path_to_mtx_root, 'cells.tsv'))
+        cells       = CellIDParser.from_path(os.path.join(path_to_mtx_root, 'cells.tsv'))
 
         return cls(expr_matrix.tocsc(), gene_list, cells)
 
