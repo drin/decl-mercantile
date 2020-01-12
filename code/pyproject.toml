@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "skyhookdm-singlecell"
+name = "skyhookdm_singlecell"
 version = "0.1.0"
 description = ""
 authors = ["Aldrin Montana <akmontan@ucsc.edu>"]
