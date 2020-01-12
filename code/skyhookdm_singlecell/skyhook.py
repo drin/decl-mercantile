@@ -3,7 +3,14 @@ from collections import namedtuple
 
 # ------------------------------
 # Module-level Variables
-debug = True
+
+ColumnSchema = namedtuple('ColumnSchema', [
+    'col_id'     ,
+    'type'       ,
+    'is_key'     ,
+    'is_nullable',
+    'col_name'   ,
+])
 
 SkyhookMetadata = namedtuple('SkyhookMetadata', [
     'METADATA_SKYHOOK_VERSION'       ,
@@ -19,14 +26,16 @@ SkyhookMetadata = namedtuple('SkyhookMetadata', [
 
 # ------------------------------
 # Classes
+
+# Enums
 class EnumMetaClass(type):
 
     def __new__(cls, name, bases, classdict_base):
         classdict_initialized = dict(classdict_base)
 
         # set the values of each slot, in the way that C/C++ sets enum values
-        for enum_ndx, slot_name in enumerate(classdict_base['__slots__'], start=1):
-            classdict_initialized[slot_name] = enum_ndx
+        for enum_ndx, enum_name in enumerate(classdict_base['__enum_names__'], start=1):
+            classdict_initialized[enum_name] = enum_ndx
 
         # always set first and last, so we generalize
         classdict_initialized['SDT_FIRST'] = 1
@@ -41,7 +50,8 @@ class DataTypes(object, metaclass=EnumMetaClass):
     A class that represents Skyhook's SDT enum.
     """
 
-    __slots__ = [
+    __slots__      = ()
+    __enum_names__ = [
         'SDT_INT8' , 'SDT_INT16' , 'SDT_INT32' , 'SDT_INT64' ,
         'SDT_UINT8', 'SDT_UINT16', 'SDT_UINT32', 'SDT_UINT64',
         'SDT_CHAR' , 'SDT_UCHAR' , 'SDT_BOOL'  ,
@@ -55,7 +65,8 @@ class FormatTypes(object, metaclass=EnumMetaClass):
     A class that represents Skyhook's SFT enum.
     """
 
-    __slots__ = [
+    __slots__      = ()
+    __enum_names__ = [
         'SFT_FLATBUF_FLEX_ROW'   , 'SFT_FLATBUF_UNION_ROW',
         'SFT_FLATBUF_UNION_COL'  , 'SFT_FLATBUF_CSV_ROW'  ,
         'SFT_ARROW'              , 'SFT_PARQUET'          ,
@@ -64,22 +75,16 @@ class FormatTypes(object, metaclass=EnumMetaClass):
     ]
 
 
-# ------------------------------
-# Functions
-def skyhook_dataschema_from_gene_expr(gene_expr_obj, delim='\n'):
-    # TODO: Not yet used
-    # schema_format = 'col_id type is_key is_nullable col_name;'
+# Simple Types
+class SentinelType(object):
+    __slots__ = ()
 
-    # 'col_id type is_key is_nullable col_name;'
-    # for type, I assume that 12 is the pos of the enum 'SDT_FLOAT'
-    # for now, everything is nullable, nothing is a key, and everything's a float
-    return '\n'.join([
-        '{} {} {} {} {}'.format(
-            cell_ndx,
-            DataTypes.SDT_FLOAT,
-            0,
-            1,
-            cell_id
-        )
-        for cell_ndx, cell_id in enumerate(gene_expr_obj.cells)
-    ])
+
+class KeyColumn(SentinelType):
+    NOT_KEY = 0
+    KEY     = 1
+
+
+class NullableColumn(SentinelType):
+    NOT_NULLABLE = 0
+    NULLABLE     = 1

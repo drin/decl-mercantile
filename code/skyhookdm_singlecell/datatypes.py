@@ -1,105 +1,18 @@
+# core packages
 import os
 import sys
 
+# dependencies
 import pyarrow
 
+# sub-modules of this package
 import skyhook
 
-from single_cell.parsers import MatrixParser, GeneListParser, CellIDParser
+from skyhookdm_singlecell import (__skyhook_version__            ,
+                                  __skyhook_data_schema_version__,
+                                  __skyhook_data_struct_version__,)
 
-
-# ------------------------------
-# Module-level variables
-debug = True
-
-
-def skyhook_dataschema_from_gene_expr(gene_expr_obj, delim='\n'):
-    # TODO: Not yet used
-    # schema_format = 'col_id type is_key is_nullable col_name;'
-
-    # 'col_id type is_key is_nullable col_name;'
-    # for type, I assume that 12 is the pos of the enum 'SDT_FLOAT'
-    # for now, everything is nullable, nothing is a key, and everything's a float
-    return '\n'.join([
-        '{} {} {} {} {}'.format(
-            cell_ndx,
-            skyhook.DataTypes.SDT_FLOAT,
-            0,
-            1,
-            cell_id
-        )
-        for cell_ndx, cell_id in enumerate(gene_expr_obj.cells)
-    ])
-
-
-# ------------------------------
-# Functions
-def schema_from_gene_expr(gene_expr_obj):
-    """
-    Function that defines a pyarrow schema using a GeneExpression object.
-    """
-
-    # TODO: not yet used
-    '''
-    gene_expr_metadata = SkyhookMetadata(
-        0,
-        0,
-        0,
-        skyhook_format_types['SFT_ARROW'],
-        skyhook_dataschema_from_gene_expr(gene_expr_obj),
-        '',
-        'gene_expression',
-        gene_expr_obj.expression.shape[0]
-    )
-    '''
-
-    return pyarrow.schema((
-        (cell_id, pyarrow.float64())
-        for cell_id in gene_expr_obj.cells
-    ))
-
-
-def gene_expr_as_recordbatch(gene_expr_schema, gene_expr_obj):
-    expr_data            = gene_expr_obj.expression.toarray()
-    row_count, col_count = gene_expr_obj.expression.shape
-
-    return pyarrow.RecordBatch.from_arrays(
-         [
-             pyarrow.array(expr_data[:, barcode_ndx])
-             for barcode_ndx in range(col_count)
-         ]
-        ,schema=gene_expr_schema
-    )
-
-
-# ------------------------------
-# utility functions
-def write_recordbatches(path_to_outfile, batch_size, batch_offset, data_schema, data_recordbatch):
-    batch_ndx = 0
-
-    print('batch size: {}'.format(batch_size))
-    print('batch offset: {}'.format(batch_offset))
-
-    with open('{}'.format(path_to_outfile), 'wb') as output_handle:
-        batch_writer = pyarrow.RecordBatchStreamWriter(output_handle, schema=data_schema)
-
-        while batch_ndx + batch_offset < data_recordbatch.num_rows:
-
-            if debug:
-                sys.stdout.write('\rwriting batch: {:0d}'.format(batch_ndx))
-                sys.stdout.flush()
-
-            batch_writer.write_batch(data_recordbatch.slice(offset=batch_ndx, length=batch_size))
-            batch_ndx += batch_offset
-
-        # have to serialize the remainder batch (num_rows % batch_offset)
-        if data_recordbatch.num_rows > batch_ndx:
-            sys.stdout.write('\rwriting batch: {:0d}'.format(batch_ndx))
-            sys.stdout.flush()
-
-            batch_writer.write_batch(data_recordbatch.slice(offset=batch_ndx, length=batch_size))
-
-        print('--- batches written')
+from parsers import MatrixParser, GeneListParser, CellIDParser
 
 
 # ------------------------------
@@ -137,6 +50,69 @@ class GeneExpression(object):
     def __init__(self, expr_matrix, gene_list, cells, **kwargs):
         super().__init__(**kwargs)
 
+        # Core data
         self.expression = expr_matrix
         self.genes      = gene_list
         self.cells      = cells
+
+        # Skyhook metadata
+        self.skyhook_schema = None
+        self.db_schema      = ''
+        self.table_name     = 'gene_expression'
+
+    def clear_schema(self):
+        self.skyhook_schema = None
+
+    def to_arrow_recordbatch(self):
+        expr_data            = self.expression.toarray()
+        row_count, col_count = self.expression.shape
+
+        return pyarrow.RecordBatch.from_arrays(
+             [
+                 pyarrow.array(expr_data[:, barcode_ndx])
+                 for barcode_ndx in range(col_count)
+             ]
+            ,schema=self.skyhook_schema_arrow()
+        )
+
+    def skyhook_schema_arrow(self):
+        if self.skyhook_schema is None:
+            # create an arrow schema for every column (expression for a cell)
+            # NOTE: pyarrow data type should match the data type used in skyhook data schema
+            arrow_schema = pyarrow.schema((
+                (cell_id, pyarrow.uint16())
+                for cell_id in self.cells
+            ))
+
+            self.skyhook_schema = arrow_schema.with_metadata(self.skyhook_metadata()._asdict())
+
+        return self.skyhook_schema
+
+    def skyhook_metadata(self):
+        """
+        Return formatted Skyhook metadata that will be stored with the arrow schema information.
+        """
+
+        # the data schema is a list of column schemas
+        skyhook_data_schema = '\n'.join([
+            skyhook.ColumnSchema(
+                cell_ndx                       ,
+                skyhook.DataTypes.SDT_UINT16   ,
+                skyhook.KeyColumn.NOT_KEY      ,
+                skyhook.NullableColumn.NULLABLE,
+                cell_id
+            )
+            for cell_ndx, cell_id in enumerate(self.cells)
+        ])
+
+        # return the Skyhook metadata tuple
+        return skyhook.SkyhookMetadata(
+            __skyhook_version__            ,
+            __skyhook_data_schema_version__,
+            __skyhook_data_struct_version__,
+            skyhook.FormatTypes.SFT_ARROW  ,
+            skyhook_data_schema            ,
+            self.db_schema                 ,
+            self.table_name                ,
+            self.expression.shape[0]
+        )
