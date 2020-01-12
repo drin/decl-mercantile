@@ -1,16 +1,13 @@
 #!/usr/bin/env python
 
 import os
-import sys
-
-sys.path.insert(1, '/public/home/akmontan/code/decl-mercantile/python')
 
 # classes
-from single_cell.util import ArgparseBuilder
-from single_cell.datatypes import GeneExpression
+from skyhookdm_singlecell.util import ArgparseBuilder
+from skyhookdm_singlecell.datatypes import GeneExpression
 
 # functions
-from single_cell.datatypes import schema_from_gene_expr, gene_expr_as_recordbatch, write_recordbatches
+from skyhookdm_singlecell.dataformats import write_data_as_arrow
 
 
 # ------------------------------
@@ -47,19 +44,18 @@ if __name__ == '__main__':
         print('<<< gene expression parsed')
 
     if not os.path.isfile(parsed_args.output_file):
-        print('>>> converting data format Arrow')
-        gene_expr_schema   = schema_from_gene_expr(gene_expr)
-        expr_recordbatches = gene_expr_as_recordbatch(gene_expr_schema, gene_expr)
+        print('>>> converting data to Arrow format')
+        expr_recordbatches = gene_expr.to_recordbatch()
         print('<<< data format converted')
 
         print('{} rows in recordbatch'.format(expr_recordbatches.num_rows))
 
-        print('>>> serializing converted data in Arrow format')
-        write_recordbatches(
+        print('>>> serializing data in Arrow format')
+        write_data_as_arrow(
             parsed_args.output_file,
             parsed_args.batch_size,
             parsed_args.batch_offset,
-            gene_expr_schema,
+            gene_expr.skyhook_schema_arrow(),
             expr_recordbatches,
         )
-        print('<<< data written in Arrow format')
+        print('<<< data serialized in Arrow format')
