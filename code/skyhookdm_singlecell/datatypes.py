@@ -3,62 +3,14 @@ import sys
 
 import pyarrow
 
-from collections import namedtuple
+import skyhook
 
 from single_cell.parsers import MatrixParser, GeneListParser, CellIDParser
 
+
+# ------------------------------
+# Module-level variables
 debug = True
-
-# ------------------------------
-# Constants
-
-# To represent Skyhook enum: SDT
-skyhook_data_types = {
-    data_type_name: enum_ndx
-    for enum_ndx, data_type_name in enumerate(
-         [
-             'SDT_INT8' , 'SDT_INT16' , 'SDT_INT32' , 'SDT_INT64' ,
-             'SDT_UINT8', 'SDT_UINT16', 'SDT_UINT32', 'SDT_UINT64',
-             'SDT_CHAR' , 'SDT_UCHAR' , 'SDT_BOOL'  ,
-             'SDT_FLOAT', 'SDT_DOUBLE',
-             'SDT_DATE' , 'SDT_STRING',
-         ]
-        ,start=1
-    )
-}
-
-skyhook_data_types['SDT_FIRST'] = skyhook_data_types['SDT_INT8']
-skyhook_data_types['SDT_LAST']  = skyhook_data_types['SDT_STRING']
-
-
-# To represent Skyhook enum: SFT
-skyhook_format_types = {
-    data_type_name: enum_ndx
-    for enum_ndx, data_type_name in enumerate(
-         [
-             'SFT_FLATBUF_FLEX_ROW'   , 'SFT_FLATBUF_UNION_ROW',
-             'SFT_FLATBUF_UNION_COL'  , 'SFT_FLATBUF_CSV_ROW'  ,
-             'SFT_ARROW'              , 'SFT_PARQUET'          ,
-             'SFT_PG_TUPLE', 'SFT_CSV', 'SFT_PG_BINARY'        ,
-             'SFT_HDF5'               , 'SFT_JSON'             ,
-         ]
-        ,start=1
-    )
-}
-
-
-# ------------------------------
-# Simple classes
-SkyhookMetadata = namedtuple('SkyhookMetadata', [
-    'METADATA_SKYHOOK_VERSION'       ,
-    'METADATA_DATA_SCHEMA_VERSION'   ,
-    'METADATA_DATA_STRUCTURE_VERSION',
-    'METADATA_DATA_FORMAT_TYPE'      ,
-    'METADATA_DATA_SCHEMA'           ,
-    'METADATA_DB_SCHEMA'             ,
-    'METADATA_TABLE_NAME'            ,
-    'METADATA_NUM_ROWS'              ,
-])
 
 
 def skyhook_dataschema_from_gene_expr(gene_expr_obj, delim='\n'):
@@ -71,7 +23,7 @@ def skyhook_dataschema_from_gene_expr(gene_expr_obj, delim='\n'):
     return '\n'.join([
         '{} {} {} {} {}'.format(
             cell_ndx,
-            skyhook_data_types['SDT_FLOAT'],
+            skyhook.DataTypes.SDT_FLOAT,
             0,
             1,
             cell_id
