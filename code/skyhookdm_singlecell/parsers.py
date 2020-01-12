@@ -1,6 +1,7 @@
 import numpy
 import scipy.io
 
+
 # ------------------------------
 # file format parsers
 class MatrixParser(object):
@@ -26,8 +27,8 @@ class GeneListParser(object):
     @classmethod
     def from_path(cls, path_to_genelist, has_header=True, delim='\t'):
         """
-        This function assumes a two-column file where the first column is identical to the second. I
-        don't know what the columns are, but I assume it is <gene symbol, gene alias>.
+        This function assumes a two-column file where the first column is identical to the second.
+        I don't know what the columns are, but I assume it is <gene symbol, gene alias>.
         """
 
         with open(path_to_genelist, 'r') as genelist_handle:
@@ -42,6 +43,7 @@ class GeneListParser(object):
             ]
 
         return numpy.array(gene_list, dtype=str)
+
 
 class CellIDParser(object):
 
@@ -62,6 +64,9 @@ class CellIDParser(object):
                                          .split(delim)
                     ,dtype=str
                 )
+
+                # a usage to avoid flake8 warning: F841
+                metadata_columns
 
             # eventually migrate to a dynamic access such as this
             # target_columns = numpy.where(metadata_columns in ['barcode',])
