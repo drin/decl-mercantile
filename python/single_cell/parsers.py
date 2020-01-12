@@ -48,7 +48,7 @@ class CellIDParser(object):
     __slots__ = ()
 
     @classmethod
-    def from_path(cls, path_to_cell_ids, has_header=True, delim='\t'):
+    def from_path(cls, path_to_cell_ids, has_header=True, delim='\t', fn_transform=None):
         """
         This function assumes a one-column file containing only single-cell cell IDs. Currently, no
         validation of the file contents is done.
@@ -59,7 +59,7 @@ class CellIDParser(object):
             if has_header:
                 metadata_columns = numpy.array(
                      next(barcode_handle).strip()
-                                          .split(delim)
+                                         .split(delim)
                     ,dtype=str
                 )
 
@@ -69,7 +69,11 @@ class CellIDParser(object):
             # 'barcode' column has a 0-based index of 7
             barcode_col_ndx = 7
             cell_ids = [
-                barcode_line.strip().split(delim)[barcode_col_ndx]
+                (
+                    barcode_line.strip().split(delim)[barcode_col_ndx]
+                    if not fn_transform
+                    else fn_transform(barcode_line.strip().split(delim)[barcode_col_ndx])
+                )
                 for barcode_line in barcode_handle
             ]
 

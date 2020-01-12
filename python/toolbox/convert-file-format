@@ -43,6 +43,8 @@ if __name__ == '__main__':
         print('>>> parsing gene expression')
         gene_expr = GeneExpression.from_mtx(parsed_args.input_dir)
 
+        print('GeneExpression shape: {}'.format(gene_expr.expression.shape))
+
         print(gene_expr.expression[:3])
         print('<<< gene expression parsed')
 
