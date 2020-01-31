@@ -1,8 +1,19 @@
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 
 
 # ------------------------------
 # Module-level Variables
+
+skyhook_metadata_attributes = [
+    'METADATA_SKYHOOK_VERSION'       ,
+    'METADATA_DATA_SCHEMA_VERSION'   ,
+    'METADATA_DATA_STRUCTURE_VERSION',
+    'METADATA_DATA_FORMAT_TYPE'      ,
+    'METADATA_DATA_SCHEMA'           ,
+    'METADATA_DB_SCHEMA'             ,
+    'METADATA_TABLE_NAME'            ,
+    'METADATA_NUM_ROWS'              ,
+]
 
 ColumnSchema = namedtuple('ColumnSchema', [
     'col_id'     ,
@@ -12,16 +23,47 @@ ColumnSchema = namedtuple('ColumnSchema', [
     'col_name'   ,
 ])
 
-SkyhookMetadata = namedtuple('SkyhookMetadata', [
-    'METADATA_SKYHOOK_VERSION'       ,
-    'METADATA_DATA_SCHEMA_VERSION'   ,
-    'METADATA_DATA_STRUCTURE_VERSION',
-    'METADATA_DATA_FORMAT_TYPE'      ,
-    'METADATA_DATA_SCHEMA'           ,
-    'METADATA_DB_SCHEMA'             ,
-    'METADATA_TABLE_NAME'            ,
-    'METADATA_NUM_ROWS'              ,
-])
+
+'''
+keeping around for now
+return bytes([
+    self.METADATA_SKYHOOK_VERSION.to_bytes(4, byteorder='big')       ,
+    self.METADATA_DATA_SCHEMA_VERSION.to_bytes(4, byteorder='big')   ,
+    self.METADATA_DATA_STRUCTURE_VERSION.to_bytes(4, byteorder='big'),
+    self.METADATA_DATA_FORMAT_TYPE.to_bytes(4, byteorder='big')      ,
+    bytes(self.METADATA_DATA_SCHEMA.encode('utf-8'))                 ,
+    self.METADATA_DB_SCHEMA.encode('utf-8')                          ,
+    self.METADATA_TABLE_NAME.encode('utf-8')                         ,
+    self.METADATA_NUM_ROWS.to_bytes(4, byteorder='big')              ,
+]
+'''
+
+class SkyhookMetadata(namedtuple('SkyhookMetadata', skyhook_metadata_attributes)):
+    def to_bytes(self):
+        def bytes_from_val(val):
+            if type(val) is int:
+                return val.to_bytes(4, byteorder='big')
+
+            elif type(val) is str:
+                return bytes(val.encode('utf-8'))
+
+            raise TypeError('Unable to convert value to bytes: {}({})'.format(val, type(val)))
+
+
+        dict_entries = []
+        for dict_key, dict_val in self._asdict().items():
+            val_bytes = bytes_from_val(dict_val)
+
+            dict_entries.append((dict_key, dict_val))
+
+        '''
+        return bytes(OrderedDict([
+            (dict_key, bytes_from_val(dict_val))
+            for dict_key, dict_val in self._asdict().items()
+        ]))
+        '''
+
+        return OrderedDict(dict_entries)
 
 
 # ------------------------------

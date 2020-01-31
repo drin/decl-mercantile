@@ -8,10 +8,6 @@ import scipy
 import pyarrow
 
 # sub-modules of this package
-from skyhookdm_singlecell import (__skyhook_version__            ,
-                                  __skyhook_data_schema_version__,
-                                  __skyhook_data_struct_version__,)
-
 from skyhookdm_singlecell import skyhook
 
 from skyhookdm_singlecell.parsers import MatrixParser, GeneListParser, CellIDParser
@@ -135,67 +131,12 @@ class GeneExpression(object):
         self.genes      = gene_list
         self.cells      = cells
 
-        # Skyhook metadata
-        self.skyhook_schema = None
-        self.db_schema      = ''
-        self.table_name     = 'gene_expression'
+    def subsample_by_counts(self, gene_count=100, cell_count=10):
+        self.expression = self.expression[:gene_count, :cell_count]
+        self.genes      = self.genes[:gene_count]
+        self.cells      = self.cells[:cell_count]
 
-    def clear_schema(self):
-        self.skyhook_schema = None
-
-    def to_arrow_recordbatch(self):
-        expr_data            = self.expression.toarray()
-        row_count, col_count = self.expression.shape
-
-        return pyarrow.RecordBatch.from_arrays(
-             [
-                 pyarrow.array(expr_data[:, barcode_ndx])
-                 for barcode_ndx in range(col_count)
-             ]
-            ,schema=self.skyhook_schema_arrow()
-        )
-
-    def skyhook_schema_arrow(self):
-        if self.skyhook_schema is None:
-            # create an arrow schema for every column (expression for a cell)
-            # NOTE: pyarrow data type should match the data type used in skyhook data schema
-            arrow_schema = pyarrow.schema((
-                (cell_id, pyarrow.uint16())
-                for cell_id in self.cells
-            ))
-
-            self.skyhook_schema = arrow_schema.with_metadata(self.skyhook_metadata()._asdict())
-
-        return self.skyhook_schema
-
-    def skyhook_metadata(self):
-        """
-        Return formatted Skyhook metadata that will be stored with the arrow schema information.
-        """
-
-        # the data schema is a list of column schemas
-        skyhook_data_schema = '\n'.join([
-            skyhook.ColumnSchema(
-                cell_ndx                       ,
-                skyhook.DataTypes.SDT_UINT16   ,
-                skyhook.KeyColumn.NOT_KEY      ,
-                skyhook.NullableColumn.NULLABLE,
-                cell_id
-            )
-            for cell_ndx, cell_id in enumerate(self.cells)
-        ])
-
-        # return the Skyhook metadata tuple
-        return skyhook.SkyhookMetadata(
-            __skyhook_version__            ,
-            __skyhook_data_schema_version__,
-            __skyhook_data_struct_version__,
-            skyhook.FormatTypes.SFT_ARROW  ,
-            skyhook_data_schema            ,
-            self.db_schema                 ,
-            self.table_name                ,
-            self.expression.shape[0]
-        )
+        return self
 
     def normalize_expression(self, target_sum=1e6):
         """
@@ -208,8 +149,8 @@ class GeneExpression(object):
 
         # if the gene expression data is in a sparse, coordinate matrix (mtx format), then we can
         # convert to a Compressed, Sparse Column (csc) matrix to be able to do operations on it.
-        if isinstance(self._expr_data, scipy.sparse.coo_matrix):
-            self._expr_data = self._expr_data.tocsc()
+        if isinstance(self.expression, scipy.sparse.coo_matrix):
+            self.expression = self.expression.tocsc()
 
         # Take the log(<count> + 1) for each matrix cell (for each barcode, for each gene) where
         # each measured gene expression (matrix cell) is normalized by the proportion of total
@@ -217,10 +158,10 @@ class GeneExpression(object):
         # In short, take the log(CPM + 1).
         normalized_counts = numpy.log1p(
               # normalize each count for a barcode by the total normalized count for that barcode
-              self._expr_data
+              self.expression
             / (
                   # normalize total count for each barcode by a million
-                  self._expr_data.sum(axis=0) / target_sum
+                  self.expression.sum(axis=0) / target_sum
               )
         )
 
@@ -245,7 +186,7 @@ class GeneExpression(object):
         cell_annotations = Annotation(
              ann_data._headers
             ,ann_data[numpy.where(
-                 numpy.isin(ann_data['cell'], self._barcodes)
+                 numpy.isin(ann_data['cell'], self.cells)
              )]
         )
 
@@ -261,8 +202,8 @@ class GeneExpression(object):
         )
 
         # use filtered barcodes to filter matrix barcodes and columns of the expression
-        self._expr_data = self._expr_data[:,barcodes_supported_by_cell_type]
-        self._barcodes  = self._barcodes[barcodes_supported_by_cell_type]
+        self.expression = self.expression[:,barcodes_supported_by_cell_type]
+        self.cells      = self.cells[barcodes_supported_by_cell_type]
 
         return self
 
@@ -279,7 +220,7 @@ class GeneExpression(object):
         cell_annotations = Annotation(
              ann_data._headers
             ,ann_data[numpy.where(
-                 numpy.isin(ann_data['cell'], self._barcodes)
+                 numpy.isin(ann_data['cell'], self.cells)
              )]
         )
 
@@ -289,8 +230,8 @@ class GeneExpression(object):
         )
 
         # get the working set of barcodes and the expression matrix
-        workset_barcodes  = self._barcodes[col_indices]
-        workset_expr_data = self._expr_data[:,col_indices]
+        workset_barcodes  = self.cells[col_indices]
+        workset_expr_data = self.expression[:,col_indices]
 
         workset_barcodes, workset_expr_data
 
