@@ -93,6 +93,24 @@ class SkyhookSerializerGeneExpression(object):
             self.gene_expr.expression.shape[0]
         )
 
+    def serialize_skyhook_metadata(self, skyhook_metadata):
+        return dict(skyhook_metadata._asdict())
+
+    def deserialize_skyhook_metadata(self, serialized_metadata):
+        return skyhook.SkyhookMetadata(**serialized_metadata)
+
+    def arrow_serialization_context(self):
+        context = pyarrow.SerializationContext()
+
+        context.register_type(
+            skyhook.SkyhookMetadata,
+            'SkyhookMetadata',
+            custom_serializer=self.serialize_skyhook_metadata,
+            custom_deserializer=self.deserialize_skyhook_metadata
+        )
+
+        return context
+
     def to_arrow_recordbatch(self, data_schema):
         expr_data            = self.gene_expr.expression.toarray().astype(numpy.float16)
         row_count, col_count = self.gene_expr.expression.shape
@@ -110,7 +128,9 @@ class SkyhookSerializerGeneExpression(object):
         batch_ndx            = 0
         skyhook_schema_arrow = (
             self.arrow_schema()
-                #.with_metadata(self.skyhook_metadata().to_bytes())
+                .with_metadata(
+                     dict(self.skyhook_metadata()._asdict()),
+                 )
         )
 
         self.logger.info('>>> converting data to Arrow format')
