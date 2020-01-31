@@ -132,6 +132,9 @@ class GeneExpression(object):
         self.cells      = cells
 
     def subsample_by_counts(self, gene_count=100, cell_count=10):
+        if isinstance(self.expression, scipy.sparse.coo_matrix):
+            self.expression = self.expression.tocsc().todense()
+
         self.expression = self.expression[:gene_count, :cell_count]
         self.genes      = self.genes[:gene_count]
         self.cells      = self.cells[:cell_count]
