@@ -1,13 +1,19 @@
 #!/usr/bin/env python
 
 import os
+import sys
+import logging
 
 # classes
 from skyhookdm_singlecell.util import ArgparseBuilder
 from skyhookdm_singlecell.datatypes import GeneExpression
+from skyhookdm_singlecell.dataformats import SkyhookSerializerGeneExpression
 
-# functions
-from skyhookdm_singlecell.dataformats import write_data_as_arrow
+
+# Set-up logger
+logger = logging.getLogger('toolbox.convert-file-format')
+logger.setLevel(logging.INFO)
+logger.addHandler(logging.StreamHandler(sys.stdout))
 
 
 # ------------------------------
@@ -24,7 +30,7 @@ parsed_args, parsed_extra_args = (
                     )
                    .add_batch_args(
                          required=True
-                        ,help_str='Path to file containing metadata'
+                        ,help_str='Number of records to batch together in output file'
                     )
                    .add_output_file_arg(
                          required=True
@@ -36,28 +42,31 @@ parsed_args, parsed_extra_args = (
 
 # ------------------------------
 if __name__ == '__main__':
+    logging.debug('Parsed command-line arguments: {}'.format(parsed_args))
+
+
     if os.path.isdir(parsed_args.input_dir):
-        print('>>> parsing gene expression')
-        gene_expr = GeneExpression.from_mtx(parsed_args.input_dir)
+        logging.info('>>> parsing gene expression')
 
-        print('GeneExpression shape: {}'.format(gene_expr.expression.shape))
+        gene_expr = (
+            GeneExpression.from_mtx(parsed_args.input_dir)
+                          .normalize_expression()
+                          .subsample_by_counts(gene_count=100, cell_count=20)
+        )
 
-        print(gene_expr.expression[:3])
-        print('<<< gene expression parsed')
+        logging.debug('GeneExpression shape: {}'.format(gene_expr.expression.shape))
+        logging.debug(gene_expr.expression[:3])
+
+        logging.info('<<< gene expression parsed')
 
     if not os.path.isfile(parsed_args.output_file):
-        print('>>> converting data to Arrow format')
-        expr_recordbatches = gene_expr.to_recordbatch()
-        print('<<< data format converted')
+        logging.info('>>> serializing data in Arrow format')
 
-        print('{} rows in recordbatch'.format(expr_recordbatches.num_rows))
-
-        print('>>> serializing data in Arrow format')
-        write_data_as_arrow(
-            parsed_args.output_file,
+        serializer = SkyhookSerializerGeneExpression(gene_expr)
+        serializer.write_data_as_arrow(
             parsed_args.batch_size,
             parsed_args.batch_offset,
-            gene_expr.skyhook_schema_arrow(),
-            expr_recordbatches,
+            parsed_args.output_file
         )
-        print('<<< data serialized in Arrow format')
+
+        logging.info('<<< data serialized in Arrow format')
