@@ -1,0 +1,29 @@
+#!/usr/bin/env python
+
+import os
+import sys
+
+import pyarrow
+
+from skyhookdm_singlecell.util import ArgparseBuilder
+
+# ------------------------------
+# Parse command-line arguments first
+parsed_args, parsed_extra_args = (
+    ArgparseBuilder.with_description('Program for inspecting data in serialized arrow files')
+                   .add_input_file_arg(
+                         required=True
+                        ,help_str='Path to arrow file (assumed to be gene expression)'
+                    )
+                   .parse_args()
+)
+
+# ------------------------------
+if __name__ == '__main__':
+    if os.path.isfile(parsed_args.input_file):
+        with open(parsed_args.input_file, 'rb') as arrow_handle:
+            recordbatch_reader = pyarrow.ipc.open_file(arrow_handle)
+
+            for batch_ndx in range(recordbatch_reader.num_record_batches):
+                print('batch {} |>'.format(batch_ndx))
+                print(recordbatch_reader.get_batch(batch_ndx))
