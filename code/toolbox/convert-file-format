@@ -50,8 +50,8 @@ if __name__ == '__main__':
 
         gene_expr = (
             GeneExpression.from_mtx(parsed_args.input_dir)
-                          .normalize_expression()
                           .subsample_by_counts(gene_count=100, cell_count=20)
+                          .normalize_expression()
         )
 
         logging.debug('GeneExpression shape: {}'.format(gene_expr.expression.shape))
