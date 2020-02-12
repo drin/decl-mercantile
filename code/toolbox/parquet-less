@@ -8,7 +8,7 @@ import pyarrow
 # parquet is a submodule of the pyarrow library, I think
 from pyarrow import parquet
 
-from util import ArgparseBuilder
+from skyhookdm_singlecell.util import ArgparseBuilder
 
 # ------------------------------
 # Parse command-line arguments first
@@ -25,3 +25,5 @@ parsed_args, parsed_extra_args = (
 if __name__ == '__main__':
     if os.path.isfile(parsed_args.input_file):
         data_table = parquet.read_table(parsed_args.input_file)
+
+        print(data_table.to_pandas()[:10])
