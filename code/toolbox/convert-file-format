@@ -63,10 +63,17 @@ if __name__ == '__main__':
         logging.info('>>> serializing data in Arrow format')
 
         serializer = SkyhookSerializerGeneExpression(gene_expr)
-        serializer.write_data_as_arrow(
-            parsed_args.batch_size,
-            parsed_args.batch_offset,
-            parsed_args.output_file
-        )
 
-        logging.info('<<< data serialized in Arrow format')
+        if parsed_args.output_file.endswith('arrow'):
+            serializer.write_data_as_arrow(
+                parsed_args.batch_size,
+                parsed_args.batch_offset,
+                parsed_args.output_file
+            )
+
+            logging.info('<<< data serialized in Arrow format')
+
+        elif parsed_args.output_file.endswith('parquet'):
+            serializer.write_data_as_parquet(parsed_args.output_file)
+
+            logging.info('<<< data serialized in parquet format')
