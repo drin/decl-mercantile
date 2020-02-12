@@ -11,6 +11,8 @@ import logging
 import numpy
 import pyarrow
 
+from pyarrow import parquet
+
 # classes from this package
 from skyhookdm_singlecell import skyhook
 from skyhookdm_singlecell.datatypes import GeneExpression
@@ -31,7 +33,6 @@ class SkyhookSerializerGeneExpression(object):
 
     logger = logging.getLogger('{}.{}'.format(__module__, __name__))
     logger.setLevel(logging.INFO)
-    # logger.addHandler(logging.StreamHandler(sys.stderr))
 
     def __init__(self, gene_expression, **kwargs):
         super().__init__(**kwargs)
@@ -43,19 +44,6 @@ class SkyhookSerializerGeneExpression(object):
         self.skyhook_schema = None
         self.db_schema      = ''
         self.table_name     = 'gene_expression'
-
-    def arrow_schema(self):
-        """
-        Create an arrow schema for every column (expression for a cell)
-
-        NOTE: pyarrow data type should match the data type used in skyhook data schema
-        """
-
-        return pyarrow.schema((
-            #(cell_id, pyarrow.uint16())
-            (cell_id, pyarrow.float16())
-            for cell_id in self.gene_expr.cells
-        ))
 
     def skyhook_column_schemas(self):
         return [
@@ -93,8 +81,35 @@ class SkyhookSerializerGeneExpression(object):
             self.gene_expr.expression.shape[0]
         )
 
-    def serialize_skyhook_metadata(self, skyhook_metadata):
-        return dict(skyhook_metadata._asdict())
+    def arrow_schema(self):
+        """
+        Create an arrow schema for every column (expression for a cell)
+
+        NOTE: pyarrow data type should match the data type used in skyhook data schema
+        """
+
+        return pyarrow.schema((
+            (cell_id, pyarrow.int8())
+            for cell_id in self.gene_expr.cells
+        ))
+
+    def to_arrow_arrays(self):
+        expr_data    = self.gene_expr.expression.toarray().astype(numpy.int8)
+        _, col_count = self.gene_expr.expression.shape
+
+        return [
+             pyarrow.array(expr_data[:, barcode_ndx])
+             for barcode_ndx in range(col_count)
+         ]
+
+    def to_arrow_recordbatch(self, data_schema):
+        return pyarrow.RecordBatch.from_arrays(self.to_arrow_arrays(), schema=data_schema)
+
+    def to_arrow_table(self, data_schema):
+        return pyarrow.Table.from_arrays(self.to_arrow_arrays(), schema=data_schema)
+
+    def serialize_skyhook_metadata(self):
+        return dict(self.skyhook_metadata()._asdict())
 
     def deserialize_skyhook_metadata(self, serialized_metadata):
         return skyhook.SkyhookMetadata(**serialized_metadata)
@@ -111,26 +126,12 @@ class SkyhookSerializerGeneExpression(object):
 
         return context
 
-    def to_arrow_recordbatch(self, data_schema):
-        expr_data            = self.gene_expr.expression.toarray().astype(numpy.float16)
-        row_count, col_count = self.gene_expr.expression.shape
-
-        return pyarrow.RecordBatch.from_arrays(
-             [
-                 pyarrow.array(expr_data[:, barcode_ndx])
-                 for barcode_ndx in range(col_count)
-             ]
-            ,schema=data_schema
-        )
-
     def write_data_as_arrow(self, batch_size, batch_offset, path_to_outfile):
         # get the arrow_schema and set the skyhook metadata
         batch_ndx            = 0
         skyhook_schema_arrow = (
             self.arrow_schema()
-                .with_metadata(
-                     dict(self.skyhook_metadata()._asdict()),
-                 )
+                .with_metadata(self.serialize_skyhook_metadata())
         )
 
         self.logger.info('>>> converting data to Arrow format')
@@ -146,10 +147,6 @@ class SkyhookSerializerGeneExpression(object):
             schema=skyhook_schema_arrow
         )
 
-        batch_writer.write_batch(data_recordbatch)
-        # batch_writer.write_batch(data_recordbatch.slice(offset=0, length=batch_size))
-
-        '''
         while batch_ndx + batch_offset < data_recordbatch.num_rows:
 
             if debug:
@@ -165,6 +162,14 @@ class SkyhookSerializerGeneExpression(object):
             sys.stdout.flush()
 
             batch_writer.write_batch(data_recordbatch.slice(offset=batch_ndx, length=batch_size))
-        '''
 
         self.logger.info('--- batches written')
+
+    def write_data_as_parquet(self, path_to_outfile):
+        data_schema = (
+            self.arrow_schema()
+                # .with_metadata(self.serialize_skyhook_metadata())
+        )
+
+        pyarrow.parquet.write_table(self.to_arrow_table(data_schema), path_to_outfile)
+
