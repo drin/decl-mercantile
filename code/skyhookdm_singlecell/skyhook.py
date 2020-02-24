@@ -15,29 +15,17 @@ skyhook_metadata_attributes = [
     'METADATA_NUM_ROWS'              ,
 ]
 
-ColumnSchema = namedtuple('ColumnSchema', [
+column_schema_attributes = [
     'col_id'     ,
     'type'       ,
     'is_key'     ,
     'is_nullable',
     'col_name'   ,
-])
-
-
-'''
-keeping around for now
-return bytes([
-    self.METADATA_SKYHOOK_VERSION.to_bytes(4, byteorder='big')       ,
-    self.METADATA_DATA_SCHEMA_VERSION.to_bytes(4, byteorder='big')   ,
-    self.METADATA_DATA_STRUCTURE_VERSION.to_bytes(4, byteorder='big'),
-    self.METADATA_DATA_FORMAT_TYPE.to_bytes(4, byteorder='big')      ,
-    bytes(self.METADATA_DATA_SCHEMA.encode('utf-8'))                 ,
-    self.METADATA_DB_SCHEMA.encode('utf-8')                          ,
-    self.METADATA_TABLE_NAME.encode('utf-8')                         ,
-    self.METADATA_NUM_ROWS.to_bytes(4, byteorder='big')              ,
 ]
-'''
 
+
+# ------------------------------
+# Classes
 class SkyhookMetadata(namedtuple('SkyhookMetadata', skyhook_metadata_attributes)):
     def to_bytes(self):
         def bytes_from_val(val):
@@ -56,18 +44,13 @@ class SkyhookMetadata(namedtuple('SkyhookMetadata', skyhook_metadata_attributes)
 
             dict_entries.append((dict_key, dict_val))
 
-        '''
-        return bytes(OrderedDict([
-            (dict_key, bytes_from_val(dict_val))
-            for dict_key, dict_val in self._asdict().items()
-        ]))
-        '''
-
         return OrderedDict(dict_entries)
 
 
-# ------------------------------
-# Classes
+class ColumnSchema(namedtuple('ColumnSchema', column_schema_attributes)):
+    def __str__(self):
+        return ' '.join([str(field_val) for field_name, field_val in self._asdict().items()])
+
 
 # Enums
 class EnumMetaClass(type):
