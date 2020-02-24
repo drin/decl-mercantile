@@ -27,10 +27,10 @@ column_schema_attributes = [
 # ------------------------------
 # Classes
 class SkyhookMetadata(namedtuple('SkyhookMetadata', skyhook_metadata_attributes)):
-    def to_bytes(self):
+    def to_byte_coercible(self):
         def bytes_from_val(val):
             if type(val) is int:
-                return val.to_bytes(4, byteorder='big')
+                return val.to_bytes(4, byteorder='little')
 
             elif type(val) is str:
                 return bytes(val.encode('utf-8'))
@@ -38,13 +38,10 @@ class SkyhookMetadata(namedtuple('SkyhookMetadata', skyhook_metadata_attributes)
             raise TypeError('Unable to convert value to bytes: {}({})'.format(val, type(val)))
 
 
-        dict_entries = []
-        for dict_key, dict_val in self._asdict().items():
-            val_bytes = bytes_from_val(dict_val)
-
-            dict_entries.append((dict_key, dict_val))
-
-        return OrderedDict(dict_entries)
+        return OrderedDict([
+            (dict_key, bytes_from_val(dict_val))
+            for dict_key, dict_val in self._asdict().items()
+        ])
 
 
 class ColumnSchema(namedtuple('ColumnSchema', column_schema_attributes)):
