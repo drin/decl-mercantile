@@ -59,6 +59,17 @@ class ArgparseBuilder(object):
 
         return self
 
+    def add_output_dir_arg(self, required=False, help_str=''):
+        self._arg_parser.add_argument(
+             '--output-dir'
+            ,dest='output_dir'
+            ,type=str
+            ,required=required
+            ,help=(help_str or 'Path to directory for output files to be written')
+        )
+
+        return self
+
     def add_batch_args(self, required=False, help_str=''):
         self._arg_parser.add_argument(
              '--batch-size'
