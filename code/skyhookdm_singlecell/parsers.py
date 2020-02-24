@@ -52,8 +52,12 @@ class CellIDParser(object):
     @classmethod
     def from_path(cls, path_to_cell_ids, has_header=True, delim='\t', fn_transform=None):
         """
-        This function assumes a one-column file containing only single-cell cell IDs. Currently, no
-        validation of the file contents is done.
+        This function currently hardcodes the column to find the primary key for cells. For the
+        MOCA dataset, the file was single column and straightforward. HCA metadata is incredibly
+        more complex, but goes through the effort of uniquely identifying a cell using a "cellkey"
+        attribute. I do not know how uniqueness of cellkey is determined.
+        
+        Currently, no validation of the file contents is done.
         """
 
         with open(path_to_cell_ids, 'r') as barcode_handle:
@@ -72,12 +76,13 @@ class CellIDParser(object):
             # target_columns = numpy.where(metadata_columns in ['barcode',])
 
             # 'barcode' column has a 0-based index of 7
-            barcode_col_ndx = 7
+            # barcode_col_ndx = 7
+            cellkey_col_ndx = 0
             cell_ids = [
                 (
-                    barcode_line.strip().split(delim)[barcode_col_ndx]
+                    barcode_line.strip().split(delim)[cellkey_col_ndx]
                     if not fn_transform
-                    else fn_transform(barcode_line.strip().split(delim)[barcode_col_ndx])
+                    else fn_transform(barcode_line.strip().split(delim)[cellkey_col_ndx])
                 )
                 for barcode_line in barcode_handle
             ]
