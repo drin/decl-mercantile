@@ -29,12 +29,16 @@ parsed_args, parsed_extra_args = (
                         ,help_str='Path to file containing metadata'
                     )
                    .add_batch_args(
-                         required=True
+                         required=False
                         ,help_str='Number of records to batch together in output file'
                     )
                    .add_output_file_arg(
+                         required=False
+                        ,help_str='Path to directory to write partitioned data in parquet format'
+                    )
+                   .add_output_dir_arg(
                          required=True
-                        ,help_str='Path to the file resulting from the conversion'
+                        ,help_str='Path to directory to write partitioned data in parquet format'
                     )
                    .parse_args()
 )
@@ -59,21 +63,34 @@ if __name__ == '__main__':
 
         logging.info('<<< gene expression parsed')
 
-    if not os.path.isfile(parsed_args.output_file):
-        logging.info('>>> serializing data in Arrow format')
+    if parsed_args.output_dir is not None:
+        logging.info('>>> serializing cell expression in parquet format')
+
+        if not os.path.isdir(parsed_args.output_dir):
+            os.makedirs(parsed_args.output_dir)
 
         serializer = SkyhookSerializerGeneExpression(gene_expr)
+        serializer.write_cells_as_parquet(parsed_args.output_dir)
 
-        if parsed_args.output_file.endswith('arrow'):
-            serializer.write_data_as_arrow(
-                parsed_args.batch_size,
-                parsed_args.batch_offset,
-                parsed_args.output_file
-            )
+        logging.info('<<< cell expression serialized in parquet format')
 
-            logging.info('<<< data serialized in Arrow format')
+    
+    if parsed_args.output_file is not None:
+        if not os.path.isfile(parsed_args.output_file):
+            logging.info('>>> serializing data in Arrow format')
 
-        elif parsed_args.output_file.endswith('parquet'):
-            serializer.write_data_as_parquet(parsed_args.output_file)
+            serializer = SkyhookSerializerGeneExpression(gene_expr)
 
-            logging.info('<<< data serialized in parquet format')
+            if parsed_args.output_file.endswith('arrow'):
+                serializer.write_data_as_arrow(
+                    parsed_args.batch_size,
+                    parsed_args.batch_offset,
+                    parsed_args.output_file
+                )
+
+                logging.info('<<< data serialized in Arrow format')
+
+            elif parsed_args.output_file.endswith('parquet'):
+                serializer.write_data_as_parquet(parsed_args.output_file)
+
+                logging.info('<<< data serialized in parquet format')
