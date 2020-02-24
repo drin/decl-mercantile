@@ -26,4 +26,4 @@ if __name__ == '__main__':
     if os.path.isfile(parsed_args.input_file):
         data_table = parquet.read_table(parsed_args.input_file)
 
-        print(data_table.to_pandas()[:10])
+        print(data_table.to_pandas())
