@@ -80,12 +80,8 @@ class SkyhookSerializerGeneExpression(object):
         Return formatted Skyhook metadata that will be stored with the arrow schema information.
         """
 
-        # closure to convert list of column schemas to a single data schema
-        def to_skyhook_data_schema(*column_schema):
-            return ' '.join(map(str, *column_schema))
-
         # apply closure to get data schema
-        skyhook_data_schema = '\n'.join(map(to_skyhook_data_schema, self.skyhook_column_schemas()))
+        skyhook_data_schema = '\n'.join(map(str, self.skyhook_column_schemas()))
 
         # return the Skyhook metadata tuple
         return skyhook.SkyhookMetadata(
@@ -131,39 +127,23 @@ class SkyhookSerializerGeneExpression(object):
         ))
 
     def arrow_schema_for_cell(self, cell_id):
-        return pyarrow.schema([
-            (cell_id, pyarrow.int8())
-        ])
-
-    def cell_expression_to_arrow_arrays(self):
-        expr_data    = self.gene_expr.expression.toarray().astype(numpy.int8)
-        _, col_count = self.gene_expr.expression.shape
-
-        return [
-            pyarrow.array(expr_data[:, barcode_ndx])
-            for barcode_ndx in range(col_count)
-        ]
-
-    def generator_cell_expression_as_arrow_arrays(self):
-        expr_data    = self.gene_expr.expression.toarray().astype(numpy.int8)
-        _, col_count = self.gene_expr.expression.shape
-
-        return (
-            (
-                self.gene_expr.cells[barcode_ndx],
-                pyarrow.array(expr_data[:, barcode_ndx])
-            )
-            for barcode_ndx in range(col_count)
-        )
+        return pyarrow.schema([ (cell_id, pyarrow.int8()) ])
 
     def to_arrow_recordbatch(self, data_schema):
-        return pyarrow.RecordBatch.from_arrays(self.cell_expression_to_arrow_arrays(), schema=data_schema)
+        """
+        Arrow format assumes that the columns are in the first dimension, not the second dimension.
+
+        So we pass the expression numpy array to pyarrow as a transposed matrix (cells are rows,
+        genes are columns). The schema is a column-based schema (cells).
+        """
+
+        return pyarrow.RecordBatch.from_arrays(self.gene_expr.expression.T, schema=data_schema)
 
     def to_arrow_table(self, data_schema):
-        return pyarrow.Table.from_arrays(self.cell_expression_to_arrow_arrays(), schema=data_schema)
+        return pyarrow.Table.from_arrays(self.gene_expr.expression.T, schema=data_schema)
 
     def serialize_skyhook_metadata(self):
-        return dict(self.skyhook_metadata()._asdict())
+        return self.skyhook_metadata().to_byte_coercible()
 
     def deserialize_skyhook_metadata(self, serialized_metadata):
         return skyhook.SkyhookMetadata(**serialized_metadata)
@@ -222,26 +202,26 @@ class SkyhookSerializerGeneExpression(object):
     def write_data_as_parquet(self, path_to_outfile):
         data_schema = (
             self.arrow_schema()
-                # .with_metadata(self.serialize_skyhook_metadata())
+                .with_metadata(self.serialize_skyhook_metadata())
         )
 
         pyarrow.parquet.write_table(self.to_arrow_table(data_schema), path_to_outfile)
 
     def write_cells_as_parquet(self, path_to_directory):
-        cell_ndx = 0
+        cell_expr = self.gene_expr.expression.T
 
-        for cell_id, cell_expr in self.generator_cell_expression_as_arrow_arrays():
+        for cell_ndx, cell_id in enumerate(self.gene_expr.cells):
             cell_expr_schema = (
                 self.arrow_schema_for_cell(cell_id)
                     .with_metadata(
                         self.skyhook_metadata_for_cell_expression(cell_ndx, cell_id)
-                            ._asdict()
+                            .to_byte_coercible()
                      )
             )
 
             pyarrow.parquet.write_table(
-                pyarrow.Table.from_arrays(cell_expr, schema=cell_expr_schema),
+                pyarrow.Table.from_arrays(
+                    (cell_expr[cell_ndx],), schema=cell_expr_schema
+                ),
                 os.path.join(path_to_directory, f'{cell_expr}.parquet')
             )
-
-            cell_ndx += 1
