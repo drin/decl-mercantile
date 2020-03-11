@@ -59,6 +59,28 @@ class ArgparseBuilder(object):
 
         return self
 
+    def add_output_file_format_arg(self, required=False, help_str=''):
+        self._arg_parser.add_argument(
+             '--output-file-format'
+            ,dest='output_file_format'
+            ,type=str
+            ,required=required
+            ,help=(help_str or 'File format to use when serializing output data')
+        )
+
+        return self
+
+    def add_flatbuffer_flag_arg(self, required=False, help_str=''):
+        self._arg_parser.add_argument(
+             '--use-skyhook-wrapper'
+            ,dest='flag_use_wrapper'
+            ,type=bool
+            ,required=required
+            ,help=(help_str or "Whether to use skyhook's flatbuffer wrapper. <True | False>")
+        )
+
+        return self
+
     def add_output_dir_arg(self, required=False, help_str=''):
         self._arg_parser.add_argument(
              '--output-dir'
