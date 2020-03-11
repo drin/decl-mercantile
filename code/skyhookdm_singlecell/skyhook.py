@@ -37,7 +37,6 @@ class SkyhookMetadata(namedtuple('SkyhookMetadata', skyhook_metadata_attributes)
 
             raise TypeError('Unable to convert value to bytes: {}({})'.format(val, type(val)))
 
-
         return OrderedDict([
             (dict_key, bytes_from_val(dict_val))
             for dict_key, dict_val in self._asdict().items()
