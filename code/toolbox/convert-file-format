@@ -8,13 +8,15 @@ import logging
 from skyhookdm_singlecell.util import ArgparseBuilder
 from skyhookdm_singlecell.datatypes import GeneExpression
 from skyhookdm_singlecell.dataformats import SkyhookSerializerGeneExpression
+from skyhookdm_singlecell.serialization import SkyhookFlatbufferGeneExpression
 
 
 # Set-up logger
 logger = logging.getLogger('toolbox.convert-file-format')
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 logger.addHandler(logging.StreamHandler(sys.stdout))
 
+debug = False
 
 # ------------------------------
 # Parse command-line arguments first
@@ -34,50 +36,102 @@ parsed_args, parsed_extra_args = (
                     )
                    .add_output_file_arg(
                          required=False
-                        ,help_str='Path to directory to write partitioned data in parquet format'
+                        ,help_str='Path to file to write serialized data'
+                    )
+                   .add_output_file_format_arg(
+                         required=True
+                        ,help_str='File format for output files. Supports: "parquet" | "arrow"'
                     )
                    .add_output_dir_arg(
-                         required=True
+                         required=False
                         ,help_str='Path to directory to write partitioned data in parquet format'
                     )
+                   .add_flatbuffer_flag_arg(required=True)
                    .parse_args()
 )
 
 
 # ------------------------------
 if __name__ == '__main__':
-    logging.debug('Parsed command-line arguments: {}'.format(parsed_args))
-
+    logger.debug('Parsed command-line arguments:\n{}'.format(
+        '\n'.join([
+            f'{arg_name}\t\t: {arg_val}'
+            for arg_name, arg_val in vars(parsed_args).items()
+        ])
+    ))
 
     if os.path.isdir(parsed_args.input_dir):
-        logging.info('>>> parsing gene expression')
+        logger.info('>>> parsing gene expression')
 
-        gene_expr = (
-            GeneExpression.from_mtx(parsed_args.input_dir)
-                          .subsample_by_counts(gene_count=100, cell_count=20)
-                          .normalize_expression()
-        )
+        gene_expr = GeneExpression.from_mtx(parsed_args.input_dir)
 
-        logging.debug('GeneExpression shape: {}'.format(gene_expr.expression.shape))
-        logging.debug(gene_expr.expression[:3])
+        if debug:
+            logger.debug('--- subsampling data to 100 genes and 20 cells')
+            gene_expr.subsample_by_counts(gene_count=100, cell_count=20)
 
-        logging.info('<<< gene expression parsed')
+        logger.info('--- normalizing gene expression')
+        gene_expr.normalize_expression()
+
+        logger.debug('--- gene expression shape: {}'.format(gene_expr.expression.shape))
+        sample = gene_expr.expression[:3]
+
+        try:
+            logger.debug(sample[sample > 0])
+
+        except Exception:
+            logger.debug(f'Malformatted attempt to print non-zeros.\nsample: {sample}')
+
+        logger.info('<<< gene expression parsed')
 
     if parsed_args.output_dir is not None:
-        logging.info('>>> serializing cell expression in parquet format')
+        logger.info('>>> serializing cell expression')
 
         if not os.path.isdir(parsed_args.output_dir):
             os.makedirs(parsed_args.output_dir)
 
         serializer = SkyhookSerializerGeneExpression(gene_expr)
-        serializer.write_cells_as_parquet(parsed_args.output_dir)
 
-        logging.info('<<< cell expression serialized in parquet format')
+        batch_sizes = [1000, 10000]
+        if parsed_args.batch_size is not None:
+            batch_sizes = [parsed_args.batch_size]
+
+        for batch_size in batch_sizes:
+            logger.info(f'--- Using batch size: {batch_size}')
+
+            if parsed_args.flag_use_wrapper:
+                logger.info('--- serializing to skyhook flatbuffer')
+
+                for batch_id, expr_table in serializer.cell_expression_batched(batch_size=10000):
+                    arrow_buffer = serializer.serialize_as_sft_arrow(expr_table)
+                    skyhook_blob = SkyhookFlatbufferGeneExpression.from_arrow_buffer(arrow_buffer)
+
+                    path_to_blob = os.path.join(
+                        parsed_args.output_dir,
+                        '{}-{}-{}.skyhook-blob'.format(
+                            batch_id, expr_table.num_columns, expr_table.column_names[0]
+                        )
+                    )
+
+                    with open(path_to_blob, 'wb') as blob_handle:
+                        blob_handle.write(skyhook_blob)
+
+            elif parsed_args.output_file_format == 'parquet':
+                logger.info('--- serializing in parquet format')
+                serializer.write_cells_as_parquet(parsed_args.output_dir, batch_size)
+
+            elif parsed_args.output_file_format == 'arrow':
+                logger.info('--- serializing in arrow format')
+                serializer.write_cells_as_arrow(parsed_args.output_dir, batch_size)
+
+            else:
+                logger.error(f'Unknown file format: {parsed_args.output_file_format}')
+
+        logger.info('<<< cell expression serialized')
 
     
     if parsed_args.output_file is not None:
         if not os.path.isfile(parsed_args.output_file):
-            logging.info('>>> serializing data in Arrow format')
+            logger.info('>>> serializing data')
 
             serializer = SkyhookSerializerGeneExpression(gene_expr)
 
@@ -88,9 +142,9 @@ if __name__ == '__main__':
                     parsed_args.output_file
                 )
 
-                logging.info('<<< data serialized in Arrow format')
+                logger.info('<<< data serialized in Arrow format')
 
             elif parsed_args.output_file.endswith('parquet'):
                 serializer.write_data_as_parquet(parsed_args.output_file)
 
-                logging.info('<<< data serialized in parquet format')
+                logger.info('<<< data serialized in parquet format')
