@@ -160,16 +160,14 @@ class GeneExpression(object):
         # expressed genes (total count for the barcode or biological cell) to 1 million.
         # In short, take the log(CPM + 1).
         normalized_counts = numpy.log1p(
-              # normalize each count for a barcode by the total normalized count for that barcode
-              self.expression
-            / (
-                  # normalize total count for each barcode by a million
-                  self.expression.sum(axis=0) / target_sum
-              )
+            # normalize each count for a barcode by the total normalized count for that barcode
+            self.expression / (
+                # normalize total count for each barcode by a million
+                self.expression.sum(axis=0) / target_sum
+            )
         )
 
-        # just for flake8 satisfaction; for now
-        normalized_counts
+        self.expression = normalized_counts
 
         return self
 
