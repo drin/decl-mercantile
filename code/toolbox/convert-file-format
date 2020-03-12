@@ -12,9 +12,15 @@ from skyhookdm_singlecell.serialization import SkyhookFlatbufferGeneExpression
 
 
 # Set-up logger
+stdout_handler = logging.StreamHandler(sys.stdout)
+stdout_handler.setFormatter(logging.Formatter(
+    fmt='{levelname} <{name} | {asctime} ~> {message}',
+    style='{'
+))
+
 logger = logging.getLogger('toolbox.convert-file-format')
 logger.setLevel(logging.DEBUG)
-logger.addHandler(logging.StreamHandler(sys.stdout))
+logger.addHandler(stdout_handler)
 
 debug = False
 
@@ -101,7 +107,7 @@ if __name__ == '__main__':
             if parsed_args.flag_use_wrapper:
                 logger.info('--- serializing to skyhook flatbuffer')
 
-                for batch_id, expr_table in serializer.cell_expression_batched(batch_size=10000):
+                for batch_id, expr_table in serializer.cell_expression_batched(batch_size):
                     arrow_buffer = serializer.serialize_as_sft_arrow(expr_table)
                     skyhook_blob = SkyhookFlatbufferGeneExpression.from_arrow_buffer(arrow_buffer)
 
