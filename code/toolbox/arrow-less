@@ -21,15 +21,14 @@ parsed_args, parsed_extra_args = (
 # ------------------------------
 if __name__ == '__main__':
     if os.path.isfile(parsed_args.input_file):
-        with pyarrow.OSFile(parsed_args.input_file, 'rb') as arrow_input_handle:
-            recordbatch_reader = pyarrow.RecordBatchFileReader(arrow_input_handle)
-            data_table         = recordbatch_reader.read_all()
+        with open(parsed_args.input_file, 'rb') as input_handle:
+            stream_reader = pyarrow.ipc.open_stream(input_handle.read())
 
-            print(data_table.schema)
-            print(data_table.to_pandas())
+        data_table = pyarrow.Table.from_batches(
+            list(stream_reader),
+            schema=stream_reader.schema
+        )
 
-            '''
-            for batch_ndx in range(recordbatch_reader.num_record_batches):
-                print('batch {} |>'.format(batch_ndx))
-                print(recordbatch_reader.get_batch(batch_ndx))
-            '''
+
+        print(data_table.schema)
+        print(data_table.to_pandas())
