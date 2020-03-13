@@ -4,9 +4,25 @@ import flatbuffers
 import pyarrow
 
 # classes
+from skyhookdm_singlecell.skyhook import FormatTypes
+from skyhookdm_singlecell.Tables.Table import Table
 from skyhookdm_singlecell.Tables.FB_Meta import FB_Meta
 
 # functions
+from skyhookdm_singlecell.Tables.Table import (TableStart, TableEnd,
+                                               TableAddDataFormatType,
+                                               TableAddSkyhookVersion,
+                                               TableAddDataStructureVersion,
+                                               TableAddDataSchemaVersion,
+                                               TableAddDataSchema,
+                                               TableAddDbSchema,
+                                               TableAddTableName,
+                                               TableAddDeleteVector,
+                                               TableStartDeleteVectorVector,
+                                               TableAddRows,
+                                               TableStartRowsVector,
+                                               TableAddNrows)
+
 from skyhookdm_singlecell.Tables.FB_Meta import (FB_MetaStart, FB_MetaEnd,
                                                  FB_MetaAddBlobFormat,
                                                  FB_MetaAddBlobData,
@@ -16,7 +32,36 @@ from skyhookdm_singlecell.Tables.FB_Meta import (FB_MetaStart, FB_MetaEnd,
                                                  FB_MetaAddBlobOrigLen,
                                                  FB_MetaAddBlobCompression)
 
-class SkyhookFlatbuffer(object):
+class SkyhookFlatbufferTable(object):
+    logger = logging.getLogger('{}.{}'.format(__module__, __name__))
+    logger.setLevel(logging.INFO)
+
+    @classmethod
+    def from_binary(cls, flatbuffer_binary, offset=0):
+        return cls(Table.GetRootAsTable(flatbuffer_binary, offset))
+
+    def __init__(self, flatbuffer_obj, **kwargs):
+        super().__init__(**kwargs)
+
+        self.fb_obj = flatbuffer_obj
+
+    def get_data_format(self):
+        return FormatTypes.__enum_names__[self.fb_obj.DataFormatType()]
+
+    def is_arrow_type(self):
+        return self.fb_obj.DataFormatType() == FormatTypes.SFT_ARROW
+
+    def get_schema(self):
+        return self.fb_obj.DataSchema()
+
+    def get_table_name(self):
+        return self.fb_obj.TableName()
+
+    def get_data_as_arrow(self):
+        pass
+
+
+class SkyhookFlatbufferMeta(object):
     logger = logging.getLogger('{}.{}'.format(__module__, __name__))
     logger.setLevel(logging.INFO)
 
@@ -45,6 +90,7 @@ class SkyhookFlatbuffer(object):
         )
 
         return deserialized_table
+
 
 class SkyhookFlatbufferGeneExpression(object):
     logger = logging.getLogger('{}.{}'.format(__module__, __name__))
