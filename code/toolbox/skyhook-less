@@ -2,12 +2,15 @@
 
 import os
 import sys
+import logging
 
 import pyarrow
 
 from skyhookdm_singlecell.util import ArgparseBuilder
+from skyhookdm_singlecell.skyhook import FormatTypes
 from skyhookdm_singlecell.serialization import (SkyhookFlatbufferGeneExpression,
-                                                SkyhookFlatbuffer)
+                                                SkyhookFlatbufferTable,
+                                                SkyhookFlatbufferMeta)
 
 # ------------------------------
 # Parse command-line arguments first
@@ -20,11 +23,28 @@ parsed_args, parsed_extra_args = (
                    .parse_args()
 )
 
+# Bootstrap logger
+logger = logging.getLogger('toolbox.skyhook-less')
+logger.addHandler(logging.StreamHandler(sys.stdout))
+logger.setLevel(logging.INFO)
+
 # ------------------------------
 if __name__ == '__main__':
     if os.path.isfile(parsed_args.input_file):
         with open(parsed_args.input_file, 'rb') as input_handle:
-            skyhook_flatbuffer = SkyhookFlatbuffer.from_binary(input_handle.read())
+            binary_data = input_handle.read()
+
+            logger.info('Parsing binary data into Tables.Table')
+            skyhook_flatbuffer = SkyhookFlatbufferTable.from_binary(binary_data)
+
+            print(f'Flatbuffer data is arrow: {skyhook_flatbuffer.is_arrow_type()}')
+            print(f'Flatbuffer blob data type: {skyhook_flatbuffer.get_data_format()}')
+            print(f'Flatbuffer schema: {skyhook_flatbuffer.get_schema()}')
+            print(f'Flatbuffer table name: {skyhook_flatbuffer.get_table_name()}')
+
+
+            # logger.info('Parsing binary data into Tables.FB_Meta')
+            # skyhook_flatbuffer = SkyhookFlatbufferMeta.from_binary(binary_data)
 
         data_table = None
 
@@ -33,6 +53,11 @@ if __name__ == '__main__':
 
             data_table = skyhook_flatbuffer.get_data_as_arrow()
             print(f'Table shape: {data_table.shape}')
+
+        elif skyhook_flatbuffer.get_data_format() == FormatTypes.SFT_JSON:
+            pass
+
+        if data_table is None: sys.exit(1)
 
         print(data_table.schema)
         print(data_table.to_pandas())
