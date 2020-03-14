@@ -7,8 +7,8 @@ import logging
 # classes
 from skyhookdm_singlecell.util import ArgparseBuilder
 from skyhookdm_singlecell.datatypes import GeneExpression
-from skyhookdm_singlecell.dataformats import SkyhookSerializerGeneExpression
-from skyhookdm_singlecell.serialization import SkyhookFlatbufferGeneExpression
+from skyhookdm_singlecell.dataformats import (SkyhookGeneExpression,
+                                              SkyhookFlatbufferWriter)
 
 
 # Set-up logger
@@ -36,6 +36,7 @@ parsed_args, parsed_extra_args = (
                          required=False
                         ,help_str='Path to file containing metadata'
                     )
+                   .add_data_format_arg(required=False)
                    .add_batch_args(
                          required=False
                         ,help_str='Number of records to batch together in output file'
@@ -46,7 +47,7 @@ parsed_args, parsed_extra_args = (
                     )
                    .add_output_file_format_arg(
                          required=True
-                        ,help_str='File format for output files. Supports: "parquet" | "arrow"'
+                        ,help_str='File format for output files. Supports: "flatbuffer" | "parquet" | "arrow"'
                     )
                    .add_output_dir_arg(
                          required=False
@@ -65,6 +66,12 @@ if __name__ == '__main__':
             for arg_name, arg_val in vars(parsed_args).items()
         ])
     ))
+
+
+    if parsed_args.data_format not in ('arrow'):
+        error_msg = f'xxx Unsupported data format: {parsed_args.data_format}'
+        logger.error(error_msg)
+        sys.exit(error_msg)
 
     if os.path.isdir(parsed_args.input_dir):
         logger.info('>>> parsing gene expression')
@@ -95,62 +102,47 @@ if __name__ == '__main__':
         if not os.path.isdir(parsed_args.output_dir):
             os.makedirs(parsed_args.output_dir)
 
-        serializer = SkyhookSerializerGeneExpression(gene_expr)
+        if parsed_args.output_file_format == 'arrow':
+            logger.info('--- writing in arrow binary format')
+            GeneExpressionArrowWriter.write_cells_as_arrow(
+                gene_expr, parsed_args.output_dir, parsed_args.batch_size
+            )
 
-        batch_sizes = [1000, 10000]
-        if parsed_args.batch_size is not None:
-            batch_sizes = [parsed_args.batch_size]
+        elif parsed_args.output_file_format == 'parquet':
+            logger.info('--- writing in parquet binary format')
+            GeneExpressionParquetWriter.write_cells_as_parquet(
+                gene_expr, parsed_args.output_dir, parsed_args.batch_size
+            )
 
-        for batch_size in batch_sizes:
-            logger.info(f'--- Using batch size: {batch_size}')
+        elif parsed_args.output_file_format == 'flatbuffer':
+            logger.info('--- writing to flatbuffer binary file')
 
-            if parsed_args.flag_use_wrapper:
-                logger.info('--- serializing to skyhook flatbuffer')
-
-                for batch_id, expr_table in serializer.cell_expression_batched(batch_size):
-                    arrow_buffer = serializer.serialize_as_sft_arrow(expr_table)
-                    skyhook_blob = SkyhookFlatbufferGeneExpression.from_arrow_buffer(arrow_buffer)
-
-                    path_to_blob = os.path.join(
-                        parsed_args.output_dir,
-                        '{}-{}-{}.skyhook-blob'.format(
-                            batch_id, expr_table.num_columns, expr_table.column_names[0]
-                        )
-                    )
-
-                    with open(path_to_blob, 'wb') as blob_handle:
-                        blob_handle.write(skyhook_blob)
-
-            elif parsed_args.output_file_format == 'parquet':
-                logger.info('--- serializing in parquet format')
-                serializer.write_cells_as_parquet(parsed_args.output_dir, batch_size)
-
-            elif parsed_args.output_file_format == 'arrow':
-                logger.info('--- serializing in arrow format')
-                serializer.write_cells_as_arrow(parsed_args.output_dir, batch_size)
-
-            else:
-                logger.error(f'Unknown file format: {parsed_args.output_file_format}')
-
-        logger.info('<<< cell expression serialized')
-
-    
-    if parsed_args.output_file is not None:
-        if not os.path.isfile(parsed_args.output_file):
-            logger.info('>>> serializing data')
-
-            serializer = SkyhookSerializerGeneExpression(gene_expr)
-
-            if parsed_args.output_file.endswith('arrow'):
-                serializer.write_data_as_arrow(
-                    parsed_args.batch_size,
-                    parsed_args.batch_offset,
-                    parsed_args.output_file
+            # Place into a flatbuffer structure in specified data format
+            if parsed_args.flag_use_wrapper and parsed_args.data_format == 'arrow':
+                logger.info('--- serializing data in wrapped arrow format')
+                skyhook_blob = SkyhookFlatbufferWriter.wrapped_arrow_buffer(
+                    gene_expr, parsed_args.output_dir, parsed_args.batch_size
                 )
 
-                logger.info('<<< data serialized in Arrow format')
+            elif not parsed_args.flag_use_wrapper and parsed_args.data_format == 'arrow':
+                logger.info('--- serializing data in skyhook arrow format')
+                skyhook_blob = SkyhookFlatbufferWriter.tabular_arrow_buffer(
+                    gene_expr, parsed_args.output_dir, parsed_args.batch_size
+                )
 
-            elif parsed_args.output_file.endswith('parquet'):
-                serializer.write_data_as_parquet(parsed_args.output_file)
+        else:
+            logger.error(f'Unknown file format: {parsed_args.output_file_format}')
 
-                logger.info('<<< data serialized in parquet format')
+        logger.info('<<< cell expression serialized')
+    
+    if parsed_args.output_file is not None:
+        if os.path.isfile(parsed_args.output_file):
+            err_msg = 'Serialized file already exists. Finishing...'
+            logger.error(err_msg)
+            sys.exit(err_msg)
+
+        if parsed_args.output_file.endswith('arrow'):
+            GeneExpressionArrowWriter.write_data_as_arrow(gene_expr, parsed_args.output_file)
+
+        elif parsed_args.output_file.endswith('parquet'):
+            GeneExpressionParquetWriter.write_data_as_parquet(gene_expr, parsed_args.output_file)
