@@ -48,6 +48,17 @@ class ArgparseBuilder(object):
 
         return self
 
+    def add_data_format_arg(self, required=False, help_str=''):
+        self._arg_parser.add_argument(
+             '--data-format'
+            ,dest='data_format'
+            ,type=str
+            ,required=required
+            ,help=(help_str or 'Serialization format for data')
+        )
+
+        return self
+
     def add_output_file_arg(self, required=False, help_str=''):
         self._arg_parser.add_argument(
              '--output-file'
