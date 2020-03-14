@@ -8,9 +8,8 @@ import pyarrow
 
 from skyhookdm_singlecell.util import ArgparseBuilder
 from skyhookdm_singlecell.skyhook import FormatTypes
-from skyhookdm_singlecell.serialization import (SkyhookFlatbufferGeneExpression,
-                                                SkyhookFlatbufferTable,
-                                                SkyhookFlatbufferMeta)
+from skyhookdm_singlecell.dataformats import (SkyhookFlatbufferTable,
+                                              SkyhookFlatbufferMeta)
 
 # ------------------------------
 # Parse command-line arguments first
@@ -32,19 +31,19 @@ logger.setLevel(logging.INFO)
 if __name__ == '__main__':
     if os.path.isfile(parsed_args.input_file):
         with open(parsed_args.input_file, 'rb') as input_handle:
-            binary_data = input_handle.read()
+            binary_data = bytearray(input_handle.read())
 
-            logger.info('Parsing binary data into Tables.Table')
-            skyhook_flatbuffer = SkyhookFlatbufferTable.from_binary(binary_data)
+            logger.info('Parsing binary data into Tables.FB_Meta')
+            skyhook_flatbuffer = SkyhookFlatbufferMeta.from_binary(binary_data)
+            # skyhook_flatbuffer = SkyhookFlatbufferTable.from_binary(binary_data)
 
-            print(f'Flatbuffer data is arrow: {skyhook_flatbuffer.is_arrow_type()}')
-            print(f'Flatbuffer blob data type: {skyhook_flatbuffer.get_data_format()}')
-            print(f'Flatbuffer schema: {skyhook_flatbuffer.get_schema()}')
-            print(f'Flatbuffer table name: {skyhook_flatbuffer.get_table_name()}')
+            # logger.info('Parsing binary data into Tables.Table')
+            # skyhook_flatbuffer = SkyhookFlatbufferTable.from_binary(binary_data)
 
-
-            # logger.info('Parsing binary data into Tables.FB_Meta')
-            # skyhook_flatbuffer = SkyhookFlatbufferMeta.from_binary(binary_data)
+            # print(f'Flatbuffer data is arrow: {skyhook_flatbuffer.is_arrow_type()}')
+            # print(f'Flatbuffer blob data type: {skyhook_flatbuffer.get_data_format()}')
+            # print(f'Flatbuffer schema: {skyhook_flatbuffer.get_schema()}')
+            # print(f'Flatbuffer table name: {skyhook_flatbuffer.get_table_name()}')
 
         data_table = None
 
@@ -54,10 +53,28 @@ if __name__ == '__main__':
             data_table = skyhook_flatbuffer.get_data_as_arrow()
             print(f'Table shape: {data_table.shape}')
 
-        elif skyhook_flatbuffer.get_data_format() == FormatTypes.SFT_JSON:
-            pass
+        elif skyhook_flatbuffer.get_data_format() == 'SFT_FLATBUF_FLEX_ROW':
+            print(f'flatbuffers flex format')
+
+            skyhook_table = skyhook_flatbuffer.get_data_as_flex()
+            print(f'Table row count: {skyhook_table.get_row_count()}')
+            print(f'Table row data format: {skyhook_table.get_data_format()}')
+
+        else:
+            print(f'Data Format value: {skyhook_flatbuffer.get_data_format()}')
 
         if data_table is None: sys.exit(1)
 
+        '''
+        print(f'Blob Format: {skyhook_flatbuffer.fb_obj.BlobFormat()}')
+        elif skyhook_flatbuffer.get_data_format() == FormatTypes.SFT_JSON:
+            print(f'JSON format')
+
+        elif skyhook_flatbuffer.get_data_format() == FormatTypes.SFT_CSV:
+            print(f'CSV format')
+
+
         print(data_table.schema)
         print(data_table.to_pandas())
+        print(len(data_table.schema.metadata['METADATA_DATA_SCHEMA'.encode('utf-8')]))
+        '''
