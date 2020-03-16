@@ -69,7 +69,7 @@ class SkyhookGeneExpression(object):
 
         # NOTE: this iterator can only be walked once
         cell_iterator = enumerate(
-            self.gene_expr.cells[start_ndx:cell_ids],
+            self.gene_expr.cells[start_ndx:end_ndx],
             start=start_ndx
         )
 
@@ -173,14 +173,11 @@ class SkyhookGeneExpression(object):
         if end is None:
             end = self.gene_expr.cells.shape[0]
 
-        cell_indices  = range(start, end)
-        cell_ids      = self.gene_expr.cells[start:end]
-
         # ------------------------------
         # Construct schema
         self.logger.info(f'>>> constructing schema for partition ({start}:{end})')
 
-        skyhook_metadata = self.skyhook_metadata_by_cell(cell_indices, cell_ids).to_byte_coercible()
+        skyhook_metadata = self.skyhook_metadata_by_cell(start, end).to_byte_coercible()
         cell_expr_schema = (
             self.arrow_schema_for_cells(start_ndx=start, end_ndx=end)
                 .with_metadata(skyhook_metadata)
@@ -213,7 +210,7 @@ class SkyhookGeneExpression(object):
         self.logger.info('<<< cell expression slice extracted')
 
         return pyarrow.Table.from_arrays(
-            list(map(numpy.ravel, numpy.hsplit(cell_expr, cell_ids.shape[0]))),
+            list(map(numpy.ravel, numpy.hsplit(cell_expr, cell_expr.shape[1]))),
             schema=cell_expr_schema
         )
 
@@ -244,15 +241,20 @@ class GeneExpressionArrowWriter(object):
         cls.logger.info('>>> writing data partitions into directory of arrow files')
 
         for ndx, table_partition in gene_expr.cell_expression_batched(batch_size=batch_size):
+            arrow_buffer = pyarrow.BufferOutputStream()
+
+            # write record batches to arrow_buffer
+            batch_writer = pyarrow.RecordBatchStreamWriter(arrow_buffer, table_partition.schema)
+            for record_batch in table_partition.to_batches():
+                batch_writer.write_batch(record_batch)
+            batch_writer.close()
+
+            # write contents of arrow_buffer to binary file
             path_to_arrow_file = os.path.join(path_to_directory, '{}-{}-{}.arrow'.format(
                 ndx, table_partition.num_columns, table_partition.column_names[0]
             ))
-
-            with pyarrow.OSFile(path_to_arrow_file, 'wb') as arrow_handle:
-                batch_writer = pyarrow.RecordBatchFileWriter(arrow_handle, table_partition.schema)
-
-                for record_batch in table_partition.to_batches():
-                    batch_writer.write_batch(record_batch)
+            with open(path_to_arrow_file, 'wb') as output_handle:
+                output_handle.write(arrow_buffer.getvalue().to_pybytes())
 
         cls.logger.info('<<< data written')
 
@@ -313,6 +315,10 @@ class GeneExpressionParquetWriter(object):
 
 
 class SkyhookFlatbufferTable(object):
+    """
+    Flatbuffer methods return 0 on failure.
+    """
+
     logger = logging.getLogger('{}.{}'.format(__module__, __name__))
     logger.setLevel(logging.INFO)
 
@@ -345,6 +351,10 @@ class SkyhookFlatbufferTable(object):
 
 
 class SkyhookFlatbufferMeta(object):
+    """
+    Flatbuffer methods return 0 on failure.
+    """
+
     logger = logging.getLogger('{}.{}'.format(__module__, __name__))
     logger.setLevel(logging.INFO)
 
@@ -357,17 +367,16 @@ class SkyhookFlatbufferMeta(object):
 
         self.fb_obj = flatbuffer_obj
 
-    def is_arrow_type(self):
-        return self.fb_obj.BlobFormat() == 1
-
     def get_data_format(self):
-        return skyhook.FormatTypes.__enum_names__[self.fb_obj.BlobFormat()]
+        return self.fb_obj.BlobFormat() or None
 
     def get_size(self):
-        return self.fb_obj.BlobDataLength()
+        return self.fb_obj.BlobDataLength() or None
 
     def get_data_as_arrow(self):
-        data_blob          = self.fb_obj.BlobDataAsNumpy()
+        data_blob = self.fb_obj.BlobDataAsNumpy()
+
+        if not data_blob: return None
 
         stream_reader      = pyarrow.ipc.open_stream(data_blob.tobytes())
         deserialized_table = pyarrow.Table.from_batches(
@@ -377,10 +386,14 @@ class SkyhookFlatbufferMeta(object):
 
         return deserialized_table
 
+    '''
     def get_data_as_flex(self):
-        return SkyhookFlatbufferTable.from_binary(
-            self.fb_obj.BlobDataAsNumpy().tobytes()
-        )
+        data_blob = self.fb_obj.BlobDataAsNumpy()
+
+        if not data_blob: return None
+
+        return SkyhookFlatbufferTable.from_binary(data_blob.tobytes())
+    '''
 
 
 class SkyhookFlatbufferWriter(object):
