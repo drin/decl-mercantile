@@ -65,6 +65,11 @@ class EnumMetaClass(type):
         # return the results of calling the superclass's __new__, but with the modified dictionary
         return type.__new__(cls, name, bases, classdict_initialized)
 
+    def from_value(self, format_type_val):
+        if not format_type_val: return None
+
+        return self.__enum_names__[format_type_val - 1]
+
 
 class DataTypes(object, metaclass=EnumMetaClass):
     """
@@ -88,11 +93,19 @@ class FormatTypes(object, metaclass=EnumMetaClass):
 
     __slots__      = ()
     __enum_names__ = [
-        'SFT_FLATBUF_FLEX_ROW'   , 'SFT_FLATBUF_UNION_ROW',
-        'SFT_FLATBUF_UNION_COL'  , 'SFT_FLATBUF_CSV_ROW'  ,
-        'SFT_ARROW'              , 'SFT_PARQUET'          ,
-        'SFT_PG_TUPLE', 'SFT_CSV', 'SFT_PG_BINARY'        ,
-        'SFT_HDF5'               , 'SFT_JSON'             ,
+        'SFT_FLATBUF_FLEX_ROW' ,
+        'SFT_FLATBUF_UNION_ROW',
+        'SFT_FLATBUF_UNION_COL',
+        'SFT_FLATBUF_CSV_ROW'  ,
+        'SFT_ARROW'            ,
+        'SFT_PARQUET'          ,
+        'SFT_PG_TUPLE'         ,
+        'SFT_CSV'              ,
+        'SFT_JSON'             ,
+        'SFT_PG_BINARY'        ,
+        'SFT_PYARROW_BINARY'   ,
+        'SFT_HDF5'             ,
+        'SFT_EXAMPLE_FORMAT'   ,
     ]
 
 
