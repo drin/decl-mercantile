@@ -376,7 +376,7 @@ class SkyhookFlatbufferMeta(object):
     def get_data_as_arrow(self):
         data_blob = self.fb_obj.BlobDataAsNumpy()
 
-        if not data_blob: return None
+        if type(data_blob) is int and data_blob == 0: return None
 
         stream_reader      = pyarrow.ipc.open_stream(data_blob.tobytes())
         deserialized_table = pyarrow.Table.from_batches(
@@ -490,7 +490,7 @@ class SkyhookFlatbufferWriter(object):
 
             FB_MetaStart(builder)
 
-            FB_MetaAddBlobFormat(builder, 1)
+            FB_MetaAddBlobFormat(builder, FormatTypes.SFT_ARROW)
             FB_MetaAddBlobData(builder, wrapped_data_blob)
             FB_MetaAddBlobSize(builder, table_binary.size)
             FB_MetaAddBlobDeleted(builder, False)
