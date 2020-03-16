@@ -8,6 +8,8 @@ import logging
 from skyhookdm_singlecell.util import ArgparseBuilder
 from skyhookdm_singlecell.datatypes import GeneExpression
 from skyhookdm_singlecell.dataformats import (SkyhookGeneExpression,
+                                              GeneExpressionArrowWriter,
+                                              GeneExpressionParquetWriter,
                                               SkyhookFlatbufferWriter)
 
 
@@ -67,8 +69,10 @@ if __name__ == '__main__':
         ])
     ))
 
+    gene_expr            = None
+    skyhook_expr_wrapper = None
 
-    if parsed_args.data_format not in ('arrow'):
+    if parsed_args.data_format not in ('arrow',):
         error_msg = f'xxx Unsupported data format: {parsed_args.data_format}'
         logger.error(error_msg)
         sys.exit(error_msg)
@@ -84,6 +88,7 @@ if __name__ == '__main__':
 
         logger.info('--- normalizing gene expression')
         gene_expr.normalize_expression()
+        skyhook_expr_wrapper = SkyhookGeneExpression(gene_expr)
 
         logger.debug('--- gene expression shape: {}'.format(gene_expr.expression.shape))
         sample = gene_expr.expression[:3]
@@ -105,13 +110,13 @@ if __name__ == '__main__':
         if parsed_args.output_file_format == 'arrow':
             logger.info('--- writing in arrow binary format')
             GeneExpressionArrowWriter.write_cells_as_arrow(
-                gene_expr, parsed_args.output_dir, parsed_args.batch_size
+                skyhook_expr_wrapper, parsed_args.output_dir, parsed_args.batch_size
             )
 
         elif parsed_args.output_file_format == 'parquet':
             logger.info('--- writing in parquet binary format')
             GeneExpressionParquetWriter.write_cells_as_parquet(
-                gene_expr, parsed_args.output_dir, parsed_args.batch_size
+                skyhook_expr_wrapper, parsed_args.output_dir, parsed_args.batch_size
             )
 
         elif parsed_args.output_file_format == 'flatbuffer':
@@ -121,13 +126,13 @@ if __name__ == '__main__':
             if parsed_args.flag_use_wrapper and parsed_args.data_format == 'arrow':
                 logger.info('--- serializing data in wrapped arrow format')
                 skyhook_blob = SkyhookFlatbufferWriter.wrapped_arrow_buffer(
-                    gene_expr, parsed_args.output_dir, parsed_args.batch_size
+                    skyhook_expr_wrapper, parsed_args.output_dir, parsed_args.batch_size
                 )
 
             elif not parsed_args.flag_use_wrapper and parsed_args.data_format == 'arrow':
                 logger.info('--- serializing data in skyhook arrow format')
                 skyhook_blob = SkyhookFlatbufferWriter.tabular_arrow_buffer(
-                    gene_expr, parsed_args.output_dir, parsed_args.batch_size
+                    skyhook_expr_wrapper, parsed_args.output_dir, parsed_args.batch_size
                 )
 
         else:
@@ -142,7 +147,7 @@ if __name__ == '__main__':
             sys.exit(err_msg)
 
         if parsed_args.output_file.endswith('arrow'):
-            GeneExpressionArrowWriter.write_data_as_arrow(gene_expr, parsed_args.output_file)
+            GeneExpressionArrowWriter.write_data_as_arrow(skyhook_expr_wrapper, parsed_args.output_file)
 
         elif parsed_args.output_file.endswith('parquet'):
-            GeneExpressionParquetWriter.write_data_as_parquet(gene_expr, parsed_args.output_file)
+            GeneExpressionParquetWriter.write_data_as_parquet(skyhook_expr_wrapper, parsed_args.output_file)
