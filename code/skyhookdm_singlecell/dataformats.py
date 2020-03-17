@@ -424,6 +424,8 @@ class SkyhookFlatbufferWriter(object):
                 table_binary.size
             )
 
+            '''
+            # Needs to be for Table
             builder = flatbuffers.Builder(partial_byte_count + table_byte_count)
 
             # we want to serialize the data first (build vector from back to front)
@@ -442,6 +444,9 @@ class SkyhookFlatbufferWriter(object):
             builder.Finish(FB_Meta.FB_MetaEnd(builder))
 
             return builder.Output()
+            '''
+
+        return None
 
     @classmethod
     def table_record_arrow_buffer(self, row_id, column_count, arrow_buffer, initial_byte_count=0):
@@ -488,17 +493,17 @@ class SkyhookFlatbufferWriter(object):
             # add the serialized data first (build flatbuffer from back to front)
             wrapped_data_blob = builder.CreateByteVector(table_binary.to_pybytes())
 
-            FB_MetaStart(builder)
+            FB_Meta.FB_MetaStart(builder)
 
-            FB_MetaAddBlobFormat(builder, FormatTypes.SFT_ARROW)
-            FB_MetaAddBlobData(builder, wrapped_data_blob)
-            FB_MetaAddBlobSize(builder, table_binary.size)
-            FB_MetaAddBlobDeleted(builder, False)
-            FB_MetaAddBlobOrigOff(builder, 0)
-            FB_MetaAddBlobOrigLen(builder, table_binary.size)
-            FB_MetaAddBlobCompression(builder, 0)
+            FB_Meta.FB_MetaAddBlobFormat(builder, skyhook.FormatTypes.SFT_ARROW)
+            FB_Meta.FB_MetaAddBlobData(builder, wrapped_data_blob)
+            FB_Meta.FB_MetaAddBlobSize(builder, table_binary.size)
+            FB_Meta.FB_MetaAddBlobDeleted(builder, False)
+            FB_Meta.FB_MetaAddBlobOrigOff(builder, 0)
+            FB_Meta.FB_MetaAddBlobOrigLen(builder, table_binary.size)
+            FB_Meta.FB_MetaAddBlobCompression(builder, 0)
 
-            builder.Finish(FB_MetaEnd(builder))
+            builder.Finish(FB_Meta.FB_MetaEnd(builder))
 
             # Serialize flatbuffer structure to disk
             path_to_blob = os.path.join(
