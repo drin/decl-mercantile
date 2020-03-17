@@ -66,4 +66,4 @@ if __name__ == '__main__':
 
         print(data_table.schema)
         print(data_table.to_pandas())
-        print(len(data_table.schema.metadata['METADATA_DATA_SCHEMA'.encode('utf-8')]))
+        print(len(data_table.schema.metadata['data_schema'.encode('utf-8')]))
