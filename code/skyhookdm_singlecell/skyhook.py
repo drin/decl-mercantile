@@ -5,14 +5,14 @@ from collections import namedtuple, OrderedDict
 # Module-level Variables
 
 skyhook_metadata_attributes = [
-    'METADATA_SKYHOOK_VERSION'       ,
-    'METADATA_DATA_SCHEMA_VERSION'   ,
-    'METADATA_DATA_STRUCTURE_VERSION',
-    'METADATA_DATA_FORMAT_TYPE'      ,
-    'METADATA_DATA_SCHEMA'           ,
-    'METADATA_DB_SCHEMA'             ,
-    'METADATA_TABLE_NAME'            ,
-    'METADATA_NUM_ROWS'              ,
+    'skyhook_version'       ,
+    'data_schema_version'   ,
+    'data_structure_version',
+    'data_format_type'      ,
+    'data_schema'           ,
+    'db_schema'             ,
+    'table_name'            ,
+    'num_rows'              ,
 ]
 
 column_schema_attributes = [
