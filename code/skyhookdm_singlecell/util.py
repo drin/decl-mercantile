@@ -81,17 +81,6 @@ class ArgparseBuilder(object):
 
         return self
 
-    def add_flatbuffer_flag_arg(self, required=False, help_str=''):
-        self._arg_parser.add_argument(
-             '--use-skyhook-wrapper'
-            ,dest='flag_use_wrapper'
-            ,type=bool
-            ,required=required
-            ,help=(help_str or "Whether to use skyhook's flatbuffer wrapper. <True | False>")
-        )
-
-        return self
-
     def add_output_dir_arg(self, required=False, help_str=''):
         self._arg_parser.add_argument(
              '--output-dir'
@@ -118,6 +107,28 @@ class ArgparseBuilder(object):
             ,type=int
             ,required=required
             ,help=(help_str or 'Amount of entities to shift the batch start (aka stride)')
+        )
+
+        return self
+
+    def add_flatbuffer_flag_arg(self, required=False, help_str=''):
+        self._arg_parser.add_argument(
+             '--use-skyhook-wrapper'
+            ,dest='flag_use_wrapper'
+            ,action='store_true'
+            ,required=required
+            ,help=(help_str or "Whether to use skyhook's flatbuffer wrapper. <True | False>")
+        )
+
+        return self
+
+    def add_analysis_arg(self, required=False, help_str=''):
+        self._arg_parser.add_argument(
+             '--should-analyze'
+            ,dest='should_analyze'
+            ,action='store_true'
+            ,required=required
+            ,help=(help_str or 'Flag representing whether to do runtime analysis')
         )
 
         return self

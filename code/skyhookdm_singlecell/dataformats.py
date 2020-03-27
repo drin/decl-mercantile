@@ -29,6 +29,13 @@ from skyhookdm_singlecell import (__skyhook_version__            ,
 debug = True
 
 
+# Expression Value Representation
+# NOTE: these need to match logically, even though they have different representations
+numpy_type   = numpy.uint16
+arrow_type   = pyarrow.uint16()
+skyhook_type = skyhook.DataTypes.SDT_UINT16
+
+
 # ------------------------------
 # Classes
 class SkyhookGeneExpression(object):
@@ -46,7 +53,7 @@ class SkyhookGeneExpression(object):
         self.gene_expr = gene_expression
 
         # hardcoded for now
-        self.gene_expr.expression.astype(dtype=numpy.uint8)
+        self.gene_expr.expression.astype(dtype=numpy_type)
 
         # Skyhook metadata
         self.skyhook_schema = None
@@ -56,7 +63,7 @@ class SkyhookGeneExpression(object):
     def arrow_schema_for_cells(self, start_ndx=None, end_ndx=None):
         # NOTE: pyarrow data type should match the data type used in skyhook data schema
         return pyarrow.schema([
-            (cell_id, pyarrow.uint8())
+            (cell_id, arrow_type)
             for cell_id in self.gene_expr.cells[start_ndx:end_ndx]
         ])
 
@@ -75,8 +82,8 @@ class SkyhookGeneExpression(object):
 
         return [
             skyhook.ColumnSchema(
-                col_id,
-                skyhook.DataTypes.SDT_UINT8    ,
+                col_id                         ,
+                skyhook_type                   ,
                 skyhook.KeyColumn.NOT_KEY      ,
                 skyhook.NullableColumn.NULLABLE,
                 cell_id
@@ -122,7 +129,7 @@ class SkyhookGeneExpression(object):
                     self.gene_expr
                         .expression[:, cell_start_ndx:cell_stop_ndx]
                         .getA()
-                        .astype(dtype=numpy.uint8),
+                        .astype(dtype=numpy_type),
                     cell_stop_ndx - cell_start_ndx
                 )
             ))
@@ -133,16 +140,24 @@ class SkyhookGeneExpression(object):
                     .expression
                     .transpose()
                     .toarray()
-                    .astype(dtype=numpy.uint8)
+                    .astype(dtype=numpy_type)
             )
 
         return pyarrow.RecordBatch.from_arrays(cell_expr, schema=data_schema)
 
     def to_arrow_table(self, data_schema):
-        cell_expression_arrays = [
-            self.gene_expr.expression.toarray()[:, cell_ndx]
-            for cell_ndx in range(self.gene_expr.expression.shape[1])
-        ]
+        # convert matrix or ndarray into a list of 1-d arrays
+        cell_expression_arrays = list(
+            # apply `ravel()` to each list from `hsplit()` to yield list of <array_like>
+            map(
+                numpy.ravel,
+                # `hsplit()` returns a list of ndarrays
+                numpy.hsplit(
+                    self.gene_expr.expression.astype(dtype=numpy_type),
+                    self.gene_expr.expression.shape[1]
+                )
+            )
+        )
 
         return pyarrow.Table.from_arrays(cell_expression_arrays, schema=data_schema)
 
@@ -196,7 +211,7 @@ class SkyhookGeneExpression(object):
                 self.gene_expr
                     .expression
                     .toarray()[:, start:end]
-                    .astype(dtype=numpy.uint8)
+                    .astype(dtype=numpy_type)
             )
 
         elif isinstance(self.gene_expr.expression, numpy.matrix):
@@ -204,7 +219,7 @@ class SkyhookGeneExpression(object):
                 self.gene_expr
                     .expression[:, start:end]
                     .getA()
-                    .astype(dtype=numpy.uint8)
+                    .astype(dtype=numpy_type)
             )
 
         self.logger.info('<<< cell expression slice extracted')
@@ -466,7 +481,7 @@ class SkyhookFlatbufferWriter(object):
         Record.RecordStart(builder)
 
         # RID is a uint64, and so it's 8 bytes
-        Record.RecordAddRID(row_id.to_bytes(8, byteorder='big'))
+        Record.RecordAddRID(row_id.to_bytes(8, byteorder='little'))
 
         # Record.RecordAddNullbits
 

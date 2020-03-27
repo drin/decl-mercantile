@@ -2,7 +2,9 @@
 
 import os
 import sys
+import time
 import logging
+import tracemalloc
 
 # classes
 from skyhookdm_singlecell.util import ArgparseBuilder
@@ -19,6 +21,10 @@ stdout_handler.setFormatter(logging.Formatter(
     fmt='{levelname} <{name} | {asctime} ~> {message}',
     style='{'
 ))
+
+analysis_logger = logging.getLogger('analysis')
+analysis_logger.addHandler(logging.FileHandler('analysis.log'))
+analysis_logger.setLevel(logging.DEBUG)
 
 logger = logging.getLogger('toolbox.convert-file-format')
 logger.setLevel(logging.DEBUG)
@@ -55,9 +61,46 @@ parsed_args, parsed_extra_args = (
                          required=False
                         ,help_str='Path to directory to write partitioned data in parquet format'
                     )
-                   .add_flatbuffer_flag_arg(required=True)
+                   .add_analysis_arg(required=False)
+                   .add_flatbuffer_flag_arg(required=False)
                    .parse_args()
 )
+
+
+def start_analysis(flag_analysis):
+    if not flag_analysis: return
+
+    start_time = time.time()
+
+    analysis_logger.info('Starting tracemalloc analysis.')
+    analysis_logger.info(f'Start time: {start_time}')
+    tracemalloc.start()
+
+    return start_time
+
+
+def snapshot_analysis(flag_analysis):
+    if not flag_analysis: return
+
+    snapshot_time = time.time()
+
+    analysis_snapshot = tracemalloc.take_snapshot()
+    analysis_logger.info(f'Snapshot time: {snapshot_time}')
+    analysis_logger.info(analysis_snapshot.statistics('filename'))
+
+    return snapshot_time
+
+
+def stop_analysis(flag_analysis):
+    if not flag_analysis: return
+
+    stop_time = time.time()
+
+    tracemalloc.stop()
+    analysis_logger.info('Stopped tracemalloc analysis.')
+    analysis_logger.info(f'Stop time: {stop_time}')
+
+    return stop_time
 
 
 # ------------------------------
@@ -76,6 +119,11 @@ if __name__ == '__main__':
         error_msg = f'xxx Unsupported data format: {parsed_args.data_format}'
         logger.error(error_msg)
         sys.exit(error_msg)
+
+    start_time = start_analysis(parsed_args.should_analyze)
+
+    # ------------------------------
+    # Parse input file
 
     if os.path.isdir(parsed_args.input_dir):
         logger.info('>>> parsing gene expression')
@@ -101,6 +149,11 @@ if __name__ == '__main__':
 
         logger.info('<<< gene expression parsed')
 
+    # Log analysis after parsing the input file
+    parse_time = snapshot_analysis(parsed_args.should_analyze)
+
+    # ------------------------------
+    # Write data in partitions
     if parsed_args.output_dir is not None:
         logger.info('>>> serializing cell expression')
 
@@ -139,8 +192,12 @@ if __name__ == '__main__':
             logger.error(f'Unknown file format: {parsed_args.output_file_format}')
 
         logger.info('<<< cell expression serialized')
-    
+
+    # ------------------------------
+    # Write data in a single file
     if parsed_args.output_file is not None:
+        logger.info('>>> serializing gene expression')
+
         if os.path.isfile(parsed_args.output_file):
             err_msg = 'Serialized file already exists. Finishing...'
             logger.error(err_msg)
@@ -151,3 +208,20 @@ if __name__ == '__main__':
 
         elif parsed_args.output_file.endswith('parquet'):
             GeneExpressionParquetWriter.write_data_as_parquet(skyhook_expr_wrapper, parsed_args.output_file)
+
+        logger.info('<<< gene expression serialized')
+
+    # Log analysis after writing output file(s)
+    write_time = snapshot_analysis(parsed_args.should_analyze)
+    stop_time  = stop_analysis(parsed_args.should_analyze)
+
+    if parsed_args.should_analyze:
+        elapsed_parse_time = parse_time - start_time
+        elapsed_write_time = write_time - parse_time
+        elapsed_total_time = stop_time  - start_time
+
+        analysis_logger.info(f'Parse time (m): {elapsed_parse_time/60}')
+        analysis_logger.info(f'Write time (m): {elapsed_write_time/60}')
+        analysis_logger.info(f'Total time (m): {elapsed_total_time/60}')
+
+        logger.info(f'Total time: {elapsed_total_time/60}')
