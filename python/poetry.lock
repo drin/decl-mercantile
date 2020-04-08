@@ -26,10 +26,10 @@ description = "Universal Command Line Environment for AWS."
 name = "awscli"
 optional = false
 python-versions = "*"
-version = "1.18.30"
+version = "1.18.36"
 
 [package.dependencies]
-botocore = "1.15.30"
+botocore = "1.15.36"
 docutils = ">=0.10,<0.16"
 rsa = ">=3.1.2,<=3.5.0"
 s3transfer = ">=0.3.0,<0.4.0"
@@ -48,7 +48,7 @@ description = "Low-level, data-driven core of boto 3."
 name = "botocore"
 optional = false
 python-versions = "*"
-version = "1.15.30"
+version = "1.15.36"
 
 [package.dependencies]
 docutils = ">=0.10,<0.16"
@@ -90,7 +90,7 @@ description = "The FlatBuffers serialization format for Python"
 name = "flatbuffers"
 optional = false
 python-versions = "*"
-version = "1.12"
+version = "1.11"
 
 [[package]]
 category = "main"
@@ -327,7 +327,7 @@ docs = ["sphinx", "jaraco.packaging (>=3.2)", "rst.linker (>=1.9)"]
 testing = ["jaraco.itertools", "func-timeout"]
 
 [metadata]
-content-hash = "b800c81450d2a637a4fa786bf948aba1914319191b109a9ee250b6b55b429f23"
+content-hash = "49ada52fb1519ae81e7919539daa53b9e141fe979df6ea7dac0bdc2a99a79ec9"
 python-versions = "^3.7"
 
 [metadata.files]
@@ -340,12 +340,12 @@ attrs = [
     {file = "attrs-19.3.0.tar.gz", hash = "sha256:f7b7ce16570fe9965acd6d30101a28f62fb4a7f9e926b3bbc9b61f8b04247e72"},
 ]
 awscli = [
-    {file = "awscli-1.18.30-py2.py3-none-any.whl", hash = "sha256:f85d538d2dcc130734dd4b2582b7e7dd945e7ce9e6373e67b12498ccc0c73f0a"},
-    {file = "awscli-1.18.30.tar.gz", hash = "sha256:14623fce97ca16b76484709827e547b210987368c91d8f722d163fb3e09cc139"},
+    {file = "awscli-1.18.36-py2.py3-none-any.whl", hash = "sha256:a66c046b1ac4d2c74b7f72af65b4b8aedc8c4fbbee5dbfc50bcec5e63480d1c8"},
+    {file = "awscli-1.18.36.tar.gz", hash = "sha256:5ca2287dd240fd1458cdd03fbca0ad05bcf13b438a3f1e60e6f7f347ebaeb395"},
 ]
 botocore = [
-    {file = "botocore-1.15.30-py2.py3-none-any.whl", hash = "sha256:d71f22e81bb17d92a6c3aad9ff04ca79af5f053ac35f6d6f16e1f002aa0655af"},
-    {file = "botocore-1.15.30.tar.gz", hash = "sha256:38eef2271ab908979ad7ec7a5cdf334c2a5a0b5e8fe37937c8a76e3ed9c18940"},
+    {file = "botocore-1.15.36-py2.py3-none-any.whl", hash = "sha256:d2233e19b6a60792185b15fe4cd8f92c5579298e5079daf17f66f6e639585e3a"},
+    {file = "botocore-1.15.36.tar.gz", hash = "sha256:5fc5e8629b5375d591a47d05baaff6ccdf5c3b617aad1e14286be458092c9e53"},
 ]
 colorama = [
     {file = "colorama-0.4.3-py2.py3-none-any.whl", hash = "sha256:7d73d2a99753107a36ac6b455ee49046802e59d9d076ef8e47b61499fa29afff"},
@@ -391,8 +391,8 @@ docutils = [
     {file = "docutils-0.15.2.tar.gz", hash = "sha256:a2aeea129088da402665e92e0b25b04b073c04b2dce4ab65caaa38b7ce2e1a99"},
 ]
 flatbuffers = [
-    {file = "flatbuffers-1.12-py2.py3-none-any.whl", hash = "sha256:9e9ef47fa92625c4721036e7c4124182668dc6021d9e7c73704edd395648deb9"},
-    {file = "flatbuffers-1.12.tar.gz", hash = "sha256:63bb9a722d5e373701913e226135b28a6f6ac200d5cc7b4d919fa38d73b44610"},
+    {file = "flatbuffers-1.11-py2.py3-none-any.whl", hash = "sha256:776a959c5f70b41819fa75de44ed14fd984fa1a79b378f27e6f4fff338cbdca2"},
+    {file = "flatbuffers-1.11.tar.gz", hash = "sha256:f24185db54193540e3d684dc98aa7c2d89882341641548ceb36fd2589fef6c4e"},
 ]
 h5py = [
     {file = "h5py-2.10.0-cp27-cp27m-macosx_10_6_intel.whl", hash = "sha256:ecf4d0b56ee394a0984de15bceeb97cbe1fe485f1ac205121293fc44dcf3f31f"},
