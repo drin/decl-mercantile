@@ -1,0 +1,2 @@
+featurekey	featurename	featuretype	chromosome	featurestart	featureend	isgene
+ENSG00000000003	TSPAN6	protein_coding	chrX	100627109	100639991	True
