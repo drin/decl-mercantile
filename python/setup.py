@@ -2,7 +2,7 @@
 from setuptools import setup
 
 packages     = ['skyhookdm_singlecell', 'skyhookdm_singlecell.Tables']
-package_data = { '': ['*'] }
+package_data = {'': ['*']}
 
 install_requires = [
     'awscli          >= 1.17.15 , <  2.0.0',
@@ -36,7 +36,7 @@ setup_kwargs = {
     'package_data'    : package_data,
 
     'install_requires': install_requires,
-    'python_requires' : '>=3.7,<4.0',
+    'python_requires' : '>=3.6,<4.0',
 }
 
 
