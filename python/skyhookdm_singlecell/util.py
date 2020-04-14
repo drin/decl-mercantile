@@ -1,6 +1,13 @@
 import argparse
 
 
+def normalize_str(str_or_bytes, byte_encoding='utf-8'):
+    if type(str_or_bytes) is bytes:
+        return str_or_bytes.decode(byte_encoding)
+
+    return str_or_bytes
+
+
 # ------------------------------
 # utility classes
 class ArgparseBuilder(object):
