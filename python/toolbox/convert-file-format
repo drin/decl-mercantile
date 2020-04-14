@@ -8,6 +8,7 @@ import tracemalloc
 
 # classes
 from skyhookdm_singlecell.util import ArgparseBuilder
+from skyhookdm_singlecell.parsers import GeneExpressionMatrixParser
 from skyhookdm_singlecell.datatypes import GeneExpression
 from skyhookdm_singlecell.dataformats import (SkyhookGeneExpression,
                                               GeneExpressionArrowWriter,
@@ -128,7 +129,10 @@ if __name__ == '__main__':
     if os.path.isdir(parsed_args.input_dir):
         logger.info('>>> parsing gene expression')
 
-        gene_expr = GeneExpression.from_mtx(parsed_args.input_dir)
+        gene_expr = GeneExpressionMatrixParser.gene_expr_from_dir(
+            parsed_args.input_dir,
+            has_header=True
+        )
 
         if debug:
             logger.debug('--- subsampling data to 100 genes and 20 cells')
