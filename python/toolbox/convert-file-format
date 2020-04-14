@@ -62,6 +62,7 @@ parsed_args, parsed_extra_args = (
                          required=False
                         ,help_str='Path to directory to write partitioned data in parquet format'
                     )
+                   .add_has_header_flag_arg(required=True)
                    .add_analysis_arg(required=False)
                    .add_flatbuffer_flag_arg(required=False)
                    .parse_args()
@@ -131,7 +132,7 @@ if __name__ == '__main__':
 
         gene_expr = GeneExpressionMatrixParser.gene_expr_from_dir(
             parsed_args.input_dir,
-            has_header=True
+            has_header=parsed_args.flag_has_header
         )
 
         if debug:
