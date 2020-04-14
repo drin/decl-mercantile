@@ -10,7 +10,6 @@ install_requires = [
     'flatbuffers     >= 1.11    , <   1.12',
     'h5py            >= 2.10    , <    3.0',
     'numpy           >= 1.17    , <    2.0',
-    'owlready2       >= 0.23    , <   0.24',
     'pandas          >= 1.0.1   , <  2.0.0',
     'pyarrow         >= 0.15.0  , < 0.16.0',
     'python-cephlibs >= 0.94.5  , < 0.95.0',
