@@ -5,7 +5,6 @@ For example, serialize a GeneExpression object into Arrow format (using RecordBa
 
 # core libraries
 import os
-import sys
 import logging
 
 # dependencies
@@ -400,15 +399,6 @@ class SkyhookFlatbufferMeta(object):
         )
 
         return deserialized_table
-
-    '''
-    def get_data_as_flex(self):
-        data_blob = self.fb_obj.BlobDataAsNumpy()
-
-        if not data_blob: return None
-
-        return SkyhookFlatbufferTable.from_binary(data_blob.tobytes())
-    '''
 
 
 class SkyhookFlatbufferWriter(object):
