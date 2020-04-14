@@ -230,7 +230,7 @@ class GeneExpressionMatrixParser(object):
         )
 
     @classmethod
-    def gene_expr_from_dir_custom(cls, path_to_mtx_dir):
+    def gene_expr_from_dir_custom(cls, path_to_mtx_dir, has_header=True):
         """
         :path_to_mtx_dir: Path to directory containing matrix data, in MTX format. Files expected
                           in directory:
@@ -254,10 +254,15 @@ class GeneExpressionMatrixParser(object):
 
         # Use scipy's function to read sparse matrix in MTX format.
         matrix_data = scipy.io.mmread(cls.open_matrix_from_dir(path_to_mtx_dir))
-        gene_list   = GeneListParser.from_handle(cls.open_genes_from_dir(path_to_mtx_dir))
 
-        barcode_list   = CellIDParser.from_handle(
+        gene_list = GeneListParser.from_handle(
+            cls.open_genes_from_dir(path_to_mtx_dir),
+            has_header=has_header
+        )
+
+        barcode_list = CellIDParser.from_handle(
             cls.open_barcodes_from_dir(path_to_mtx_dir),
+            has_header=has_header,
             fn_transform=closure_transform_barcode
         )
 
