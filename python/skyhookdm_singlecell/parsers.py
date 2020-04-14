@@ -5,7 +5,11 @@ import gzip
 import numpy
 import scipy.io
 
+# classes
 from skyhookdm_singlecell.datatypes import GeneExpression, Annotation
+
+# functions
+from skyhookdm_singlecell.util import normalize_str
 
 
 class GeneListParser(object):
@@ -37,7 +41,7 @@ class GeneListParser(object):
         if has_header: next(genelist_handle)
 
         gene_list = [
-            numpy.array(gene_line.strip().split(delim), dtype=str)
+            numpy.array(normalize_str(gene_line).strip().strip('"').split(delim), dtype=str)
             for gene_line in genelist_handle
         ]
 
@@ -82,15 +86,14 @@ class CellIDParser(object):
             # target_columns = numpy.where(metadata_columns in ['barcode',])
 
             cell_ids = [
-                (
-                    cell_record.strip().split(delim)[cellkey_col_ndx]
-                    if not fn_transform
-                    else fn_transform(cell_record.strip().split(delim)[cellkey_col_ndx])
-                )
+                normalize_str(cell_record).strip().strip('"').split(delim)[cellkey_col_ndx]
                 for cell_record in cell_list_handle
             ]
 
         # return gene list as a numpy array of strings
+        if fn_transform:
+            return numpy.array(list(map(fn_transform, cell_ids)), dtype=str)
+
         return numpy.array(cell_ids, dtype=str)
 
 
@@ -132,17 +135,17 @@ class GeneExpressionMatrixParser(object):
         # make some attempts to find the matrix file
 
         uncompressed_path = os.path.join(path_to_mtx_root, component_name)
-        compressed_path   = os.path.join(path_to_mtx_root, '{}.gz'.format(component_name))
+        compressed_path   = os.path.join(path_to_mtx_root, f'{component_name}.gz')
 
         if os.path.isfile(uncompressed_path):
             return open(uncompressed_path, 'r')
 
         elif os.path.isfile(compressed_path):
-            return gzip.open(compressed_path, 'r')
+            return gzip.open(compressed_path, 'rb')
 
         # error checking for matrix file
         else:
-            err_msg = 'Expected matrix.mtx in mtx root: {}\n'.format(path_to_mtx_root)
+            err_msg = f'Expected {component_name}[.gz] in mtx root: {path_to_mtx_root}\n'
 
             sys.stderr.write(err_msg)
             sys.exit(err_msg)
@@ -158,7 +161,7 @@ class GeneExpressionMatrixParser(object):
         return cls.open_component_from_dir(path_to_mtx_root, 'genes.tsv')
 
     @classmethod
-    def path_to_cells_from_dir(cls, path_to_mtx_root):
+    def open_cells_from_dir(cls, path_to_mtx_root):
         return cls.open_component_from_dir(path_to_mtx_root, 'cells.tsv')
 
     @classmethod
