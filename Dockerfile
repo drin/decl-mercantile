@@ -50,6 +50,10 @@ RUN    git clone --branch "cloudlab" $CONFIGS_GIT_URL $PATH_TO_CONFIGS   \
     && apt-get clean -y                                                  \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* debian/
 
+ARG CODE_GIT_URL="https://github.com/drin/decl-mercantile.git"
+ARG PATH_TO_CODE="/code/decl-mercantile"
+RUN git clone --branch "cloudlab" $CODE_GIT_URL $PATH_TO_CODE
+
 COPY entrypoint.sh /
 
 ENTRYPOINT ["/entrypoint.sh"]
