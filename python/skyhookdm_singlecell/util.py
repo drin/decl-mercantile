@@ -122,6 +122,22 @@ class ArgparseBuilder(object):
 
         return self
 
+    def add_has_header_flag_arg(self, required=False, help_str=''):
+        default_help_msg = (
+            "Specifies that cells and genes list files have header lines to skip. "
+            "<True | False>"
+        )
+
+        self._arg_parser.add_argument(
+             '--data-files-have-header'
+            ,dest='flag_has_header'
+            ,action='store_true'
+            ,required=required
+            ,help=(help_str or default_help_msg)
+        )
+
+        return self
+
     def add_analysis_arg(self, required=False, help_str=''):
         self._arg_parser.add_argument(
              '--should-analyze'
