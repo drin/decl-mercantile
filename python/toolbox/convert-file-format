@@ -62,7 +62,7 @@ parsed_args, parsed_extra_args = (
                          required=False
                         ,help_str='Path to directory to write partitioned data in parquet format'
                     )
-                   .add_has_header_flag_arg(required=True)
+                   .add_has_header_flag_arg(required=False)
                    .add_analysis_arg(required=False)
                    .add_flatbuffer_flag_arg(required=False)
                    .parse_args()
