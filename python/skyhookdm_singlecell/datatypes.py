@@ -1,43 +1,15 @@
 # core packages
-import os
 import sys
 
 # dependencies
 import numpy
 import scipy
-import pyarrow
-
-# sub-modules of this package
-from skyhookdm_singlecell import skyhook
-
-from skyhookdm_singlecell.parsers import MatrixParser, GeneListParser, CellIDParser
 
 
 # ------------------------------
 # Classes
 class Annotation(object):
     __slots__ = ('_headers', '_annotations')
-
-    @classmethod
-    def from_csv(cls, path_to_annotations, has_header=True, delim=','):
-        """
-        Returns annotations represented by a numpy.array object of shape:
-            (# of parsed annotations, # of annotation columns)
-        """
-
-        with open(path_to_annotations, 'r') as ann_handle:
-            # parse headers
-            ann_headers = None
-            if has_header:
-                ann_headers = numpy.array(next(ann_handle).strip().split(delim), dtype=str)
-
-            annotations = [
-                numpy.array(ann_line.strip().split(delim), dtype=str)
-                for ann_line in ann_handle
-            ]
-
-        # return tuple (header, data)
-        return Annotation(ann_headers, numpy.array(annotations))
 
     def __init__(self, headers, annotations):
         self._headers     = headers
@@ -49,86 +21,12 @@ class Annotation(object):
 
 class GeneExpression(object):
 
-    @classmethod
-    def from_mtx(cls, path_to_mtx_root):
-        """
-        Factory function for reading gene expression matrix. Uses scanpy's read() function to read
-        the gene expression data in mtx format, and then uses pandas to parse genes and cell IDs
-        into dataframes to be used for obs and var dimensions of the gene expression anndata
-        object.
-
-        :path_to_mtx_root: Path to a directory containing: a gene expression matrix in mtx format,
-        named 'matrix.mtx'; a list of cell IDs, named 'cells.tsv'; and a list of
-        gene symbols (aka gene names), named 'genes.tsv'.
-        """
-
-        # TODO this should eventually check for plaintext files too, but for now it assumes gzipped
-        path_to_matrix = os.path.join(path_to_mtx_root, 'matrix.mtx')
-
-        if not os.path.isfile(path_to_matrix):
-            err_msg = 'Expected matrix.mtx in mtx root: {}\n'.format(path_to_mtx_root)
-
-            sys.stderr.write(err_msg)
-            sys.exit(err_msg)
-
-        expr_matrix = MatrixParser.from_path(os.path.join(path_to_mtx_root, 'matrix.mtx'))
-        gene_list   = GeneListParser.from_path(os.path.join(path_to_mtx_root, 'genes.tsv'))
-        cells       = CellIDParser.from_path(os.path.join(path_to_mtx_root, 'cells.tsv'))
-
-        return cls(expr_matrix.tocsc(), gene_list, cells)
-
-    @classmethod
-    def from_custom_mtx(cls, path_to_mtx_root):
-        """
-        Factory function for reading gene expression matrix that is very similar to
-        GeneExpression.from_mtx() but applies a transformation to barcodes on ingest.
-
-        :path_to_mtx_root: Path to a directory containing: a gene expression matrix in mtx format,
-        named 'matrix.mtx'; a list of barcodes (aka Cell IDs), named 'barcodes.tsv'; and a list of
-        gene symbols (aka gene names), named 'genes.tsv'.
-        """
-
-        try:
-            sample_name = os.path.basename(path_to_mtx_root).split('-')[1]
-            closure_transform_barcode = cls.cell_id_from_barcode(sample_name)
-
-        except Exception:
-            err_msg = 'Unable to parse sample name from path: {}'.format(path_to_mtx_root)
-
-            sys.stderr.write(err_msg)
-            sys.exit(err_msg)
-
-        gene_expr = MatrixParser.from_path(os.path.join(path_to_mtx_root, 'matrix.mtx'))
-        gene_list = GeneListParser.from_path(os.path.join(path_to_mtx_root, 'genes.tsv'))
-        barcodes  = CellIDParser.from_path(
-            os.path.join(path_to_mtx_root, 'barcodes.tsv'),
-            fn_transform=closure_transform_barcode
-        )
-
-        return cls(gene_expr, gene_list, barcodes)
-
-    @classmethod
-    def cell_id_from_barcode(cls, sample_name):
-        """
-        This is a utility function that returns a closure to be mapped onto a list of barcodes.
-        """
-
-        def closure_cell_id_from_barcode(cell_barcode):
-            """
-            To get 'Cell ID' we prefix the cell barcode with '<sample_name>_' and we remove the
-            '-1' from the end.
-            """
-
-            return '{}_{}'.format(sample_name, cell_barcode.rstrip('-1'))
-
-        return closure_cell_id_from_barcode
-
-    def __init__(self, expr_matrix, gene_list, cells, **kwargs):
+    def __init__(self, expression_matrix, genes, cells, **kwargs):
         super().__init__(**kwargs)
 
         # Core data
-        self.expression = expr_matrix
-        self.genes      = gene_list
+        self.expression = expression_matrix
+        self.genes      = genes
         self.cells      = cells
 
     def subsample_by_counts(self, gene_count=100, cell_count=10):
