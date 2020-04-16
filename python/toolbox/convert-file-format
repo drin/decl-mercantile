@@ -167,13 +167,13 @@ if __name__ == '__main__':
 
         if parsed_args.output_file_format == 'arrow':
             logger.info('--- writing in arrow binary format')
-            GeneExpressionArrowWriter.write_cells_as_arrow(
+            GeneExpressionArrowWriter.write_single_cells_batch(
                 skyhook_expr_wrapper, parsed_args.output_dir, parsed_args.batch_size
             )
 
         elif parsed_args.output_file_format == 'parquet':
             logger.info('--- writing in parquet binary format')
-            GeneExpressionParquetWriter.write_cells_as_parquet(
+            GeneExpressionParquetWriter.write_single_cells_batch(
                 skyhook_expr_wrapper, parsed_args.output_dir, parsed_args.batch_size
             )
 
@@ -209,10 +209,10 @@ if __name__ == '__main__':
             sys.exit(err_msg)
 
         if parsed_args.output_file.endswith('arrow'):
-            GeneExpressionArrowWriter.write_data_as_arrow(skyhook_expr_wrapper, parsed_args.output_file)
+            GeneExpressionArrowWriter.write_single_cells_all(skyhook_expr_wrapper, parsed_args.output_file)
 
         elif parsed_args.output_file.endswith('parquet'):
-            GeneExpressionParquetWriter.write_data_as_parquet(skyhook_expr_wrapper, parsed_args.output_file)
+            GeneExpressionParquetWriter.write_single_cells_all(skyhook_expr_wrapper, parsed_args.output_file)
 
         logger.info('<<< gene expression serialized')
 
