@@ -6,6 +6,7 @@ import sys
 import pyarrow
 
 from skyhookdm_singlecell.util import ArgparseBuilder
+from skyhookdm_singlecell.dataformats import GeneExpressionArrowReader
 
 # ------------------------------
 # Parse command-line arguments first
@@ -21,14 +22,7 @@ parsed_args, parsed_extra_args = (
 # ------------------------------
 if __name__ == '__main__':
     if os.path.isfile(parsed_args.input_file):
-        with open(parsed_args.input_file, 'rb') as input_handle:
-            stream_reader = pyarrow.ipc.open_stream(input_handle.read())
-
-        data_table = pyarrow.Table.from_batches(
-            list(stream_reader),
-            schema=stream_reader.schema
-        )
-
+        data_table = GeneExpressionArrowReader.read_single_cells(parsed_args.input_file)
 
         print(data_table.schema)
         print(data_table.to_pandas())
