@@ -6,7 +6,7 @@ import numpy
 import scipy.io
 
 # classes
-from skyhookdm_singlecell.datatypes import GeneExpression, Annotation
+from skyhookdm_singlecell.singlecell import GeneExpression, Annotation
 
 # functions
 from skyhookdm_singlecell.util import normalize_str
