@@ -245,13 +245,51 @@ class SkyhookGeneExpression(object):
             yield batch_id, self.cell_expression_table(start=start, end=end)
 
 
+class GeneExpressionArrowReader(object):
+
+    logger = logging.getLogger('{}.{}'.format(__module__, __name__))
+    logger.setLevel(logging.INFO)
+
+    @classmethod
+    def read_single_cells_partitions(cls, path_to_directory, file_ext='.arrow'):
+        cls.logger.info('>>> reading data partitions from directory of arrow files')
+
+        partition_ndx    = 0
+        table_partitions = []
+        for partition_ndx, partition_file in enumerate(os.listdir(path_to_directory)):
+
+            with open(os.path.join(path_to_directory, partition_file), 'rb') as input_handle:
+                stream_reader = pyarrow.ipc.open_stream(input_handle.read())
+
+            table_partitions.append(
+                pyarrow.Table.from_batches(
+                    list(stream_reader),
+                    schema=stream_reader.schema
+                )
+            )
+
+        cls.logger.info(f'<<< read {partition_ndx + 1} partitions')
+        return pyarrow.concat_tables(table_partitions)
+
+    @classmethod
+    def read_single_cells(cls, path_to_outfile):
+        cls.logger.info('>>> reading data partitions from directory of arrow files')
+
+        with open(path_to_outfile, 'rb') as input_handle:
+            stream_reader = pyarrow.ipc.open_stream(input_handle.read())
+
+        cls.logger.info('<<< data read')
+
+        return pyarrow.Table.from_batches(list(stream_reader), schema=stream_reader.schema)
+
+
 class GeneExpressionArrowWriter(object):
 
     logger = logging.getLogger('{}.{}'.format(__module__, __name__))
     logger.setLevel(logging.INFO)
 
     @classmethod
-    def write_cells_as_arrow(cls, gene_expr, path_to_directory, batch_size=1000):
+    def write_single_cells_batch(cls, gene_expr, path_to_directory, batch_size=1000):
         cls.logger.info('>>> writing data partitions into directory of arrow files')
 
         for ndx, table_partition in gene_expr.cell_expression_batched(batch_size=batch_size):
@@ -273,7 +311,7 @@ class GeneExpressionArrowWriter(object):
         cls.logger.info('<<< data written')
 
     @classmethod
-    def write_data_as_arrow(cls, gene_expr, path_to_outfile):
+    def write_single_cells_all(cls, gene_expr, path_to_outfile):
         data_schema = (
             gene_expr.arrow_schema_for_cells()
                      .with_metadata(
@@ -299,7 +337,20 @@ class GeneExpressionParquetWriter(object):
     logger.setLevel(logging.INFO)
 
     @classmethod
-    def write_data_as_parquet(cls, gene_expr, path_to_outfile):
+    def write_single_cells_batch(cls, gene_expr, path_to_directory, batch_size=1000):
+        cls.logger.info('>>> writing data partitions into directory of parquet files')
+
+        for ndx, table_partition in gene_expr.cell_expression_batched(batch_size=batch_size):
+            path_to_parquet_file = os.path.join(path_to_directory, '{}-{}-{}.parquet'.format(
+                ndx, table_partition.num_columns, table_partition.column_names[0]
+            ))
+
+            pyarrow.parquet.write_table(table_partition, path_to_parquet_file)
+
+        cls.logger.info('<<< data written')
+
+    @classmethod
+    def write_single_cells_all(cls, gene_expr, path_to_outfile):
         data_schema = (
             gene_expr.arrow_schema_for_cells()
                      .with_metadata(
@@ -311,19 +362,6 @@ class GeneExpressionParquetWriter(object):
         cls.logger.info('>>> writing data in single parquet file')
 
         pyarrow.parquet.write_table(gene_expr.to_arrow_table(data_schema), path_to_outfile)
-
-        cls.logger.info('<<< data written')
-
-    @classmethod
-    def write_cells_as_parquet(cls, gene_expr, path_to_directory, batch_size=1000):
-        cls.logger.info('>>> writing data partitions into directory of parquet files')
-
-        for ndx, table_partition in gene_expr.cell_expression_batched(batch_size=batch_size):
-            path_to_parquet_file = os.path.join(path_to_directory, '{}-{}-{}.parquet'.format(
-                ndx, table_partition.num_columns, table_partition.column_names[0]
-            ))
-
-            pyarrow.parquet.write_table(table_partition, path_to_parquet_file)
 
         cls.logger.info('<<< data written')
 
