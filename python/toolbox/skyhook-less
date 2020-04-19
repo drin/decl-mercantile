@@ -8,8 +8,7 @@ import pyarrow
 
 from skyhookdm_singlecell.util import ArgparseBuilder
 from skyhookdm_singlecell.skyhook import FormatTypes
-from skyhookdm_singlecell.dataformats import (SkyhookFlatbufferTable,
-                                              SkyhookFlatbufferMeta)
+from skyhookdm_singlecell.dataformats import SkyhookFlatbufferMeta
 
 # ------------------------------
 # Parse command-line arguments first
@@ -31,10 +30,10 @@ logger.setLevel(logging.INFO)
 if __name__ == '__main__':
     if os.path.isfile(parsed_args.input_file):
         with open(parsed_args.input_file, 'rb') as input_handle:
-            binary_data = bytearray(input_handle.read())
+            binary_data = bytes(input_handle.read())
 
             logger.info('Parsing binary data into Tables.FB_Meta')
-            skyhook_flatbuffer = SkyhookFlatbufferMeta.from_binary(binary_data)
+            skyhook_flatbuffer = SkyhookFlatbufferMeta.from_binary_flatbuffer(binary_data)
 
         print(
             f'''

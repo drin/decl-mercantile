@@ -9,11 +9,7 @@ import tracemalloc
 # classes
 from skyhookdm_singlecell.util import ArgparseBuilder
 from skyhookdm_singlecell.parsers import GeneExpressionMatrixParser
-from skyhookdm_singlecell.datatypes import GeneExpression
-from skyhookdm_singlecell.dataformats import (SkyhookGeneExpression,
-                                              GeneExpressionArrowWriter,
-                                              GeneExpressionParquetWriter,
-                                              SkyhookFlatbufferWriter)
+from skyhookdm_singlecell.dataformats import (SkyhookGeneExpression, SkyhookFileWriter)
 
 
 # Set-up logger
@@ -45,7 +41,6 @@ parsed_args, parsed_extra_args = (
                          required=False
                         ,help_str='Path to file containing metadata'
                     )
-                   .add_data_format_arg(required=False)
                    .add_batch_args(
                          required=False
                         ,help_str='Number of records to batch together in output file'
@@ -61,6 +56,10 @@ parsed_args, parsed_extra_args = (
                    .add_output_dir_arg(
                          required=False
                         ,help_str='Path to directory to write partitioned data in parquet format'
+                    )
+                   .add_data_format_arg(
+                         required=False
+                        ,help_str='Format of input data. Supports: "flatbuffer" | "arrow"'
                     )
                    .add_has_header_flag_arg(required=False)
                    .add_analysis_arg(required=False)
@@ -167,13 +166,13 @@ if __name__ == '__main__':
 
         if parsed_args.output_file_format == 'arrow':
             logger.info('--- writing in arrow binary format')
-            GeneExpressionArrowWriter.write_single_cells_batch(
+            SkyhookFileWriter.write_gene_expr_partitions_arrow(
                 skyhook_expr_wrapper, parsed_args.output_dir, parsed_args.batch_size
             )
 
         elif parsed_args.output_file_format == 'parquet':
             logger.info('--- writing in parquet binary format')
-            GeneExpressionParquetWriter.write_single_cells_batch(
+            SkyhookFileWriter.write_gene_expr_partitions_parquet(
                 skyhook_expr_wrapper, parsed_args.output_dir, parsed_args.batch_size
             )
 
@@ -183,13 +182,15 @@ if __name__ == '__main__':
             # Place into a flatbuffer structure in specified data format
             if parsed_args.flag_use_wrapper and parsed_args.data_format == 'arrow':
                 logger.info('--- serializing data in wrapped arrow format')
-                skyhook_blob = SkyhookFlatbufferWriter.wrapped_arrow_buffer(
+
+                SkyhookFileWriter.write_gene_expr_partitions_flatbuffer(
                     skyhook_expr_wrapper, parsed_args.output_dir, parsed_args.batch_size
                 )
 
             elif not parsed_args.flag_use_wrapper and parsed_args.data_format == 'arrow':
                 logger.info('--- serializing data in skyhook arrow format')
-                skyhook_blob = SkyhookFlatbufferWriter.tabular_arrow_buffer(
+
+                SkyhookFileWriter.write_gene_expr_partitions_arrow(
                     skyhook_expr_wrapper, parsed_args.output_dir, parsed_args.batch_size
                 )
 
@@ -209,10 +210,10 @@ if __name__ == '__main__':
             sys.exit(err_msg)
 
         if parsed_args.output_file.endswith('arrow'):
-            GeneExpressionArrowWriter.write_single_cells_all(skyhook_expr_wrapper, parsed_args.output_file)
+            SkyhookFileWriter.write_gene_expr_arrow(skyhook_expr_wrapper, parsed_args.output_file)
 
         elif parsed_args.output_file.endswith('parquet'):
-            GeneExpressionParquetWriter.write_single_cells_all(skyhook_expr_wrapper, parsed_args.output_file)
+            SkyhookFileWriter.write_gene_expr_parquet(skyhook_expr_wrapper, parsed_args.output_file)
 
         logger.info('<<< gene expression serialized')
 
