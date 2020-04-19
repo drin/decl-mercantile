@@ -1,0 +1,93 @@
+#!/usr/bin/env python
+
+import os
+import sys
+
+from skyhookdm_singlecell.util import ArgparseBuilder
+from skyhookdm_singlecell.connectors import RadosConnector
+from skyhookdm_singlecell.dataformats import SkyhookFileReader, SkyhookFlatbufferMeta
+
+# ------------------------------
+# Parse command-line arguments first
+argparser = (
+    ArgparseBuilder.with_description('Program for inspecting data in serialized arrow files')
+                   .add_config_file_arg(
+                         required=True
+                        ,help_str='Path to Ceph config file (default: $HOME/cluster/ceph.conf)'
+                        ,default=RadosConnector.default_config
+                    )
+                   .add_input_file_arg(
+                         required=False
+                        ,help_str='Path to arrow file (assumed to be gene expression)'
+                    )
+                   .add_input_dir_arg(
+                         required=False
+                        ,help_str='Path to root directory of gene expression in MTX format'
+                    )
+                   .add_data_format_arg(
+                         required=False
+                        ,help_str='Format of input data. Supports: "flatbuffer" | "arrow"'
+                    )
+                   .add_flatbuffer_flag_arg(required=False)
+)
+
+parsed_args, parsed_extra_args = argparser.parse_args()
+
+# ------------------------------
+# Main Logic
+
+if __name__ == '__main__':
+
+    # ------------------------------
+    # Validate invocation
+
+    # use xor, because one and only one of these options should be provided
+    print('Which was specified: input_file ({}) or input_dir ({})'.format(
+        parsed_args.input_file is not None,
+        parsed_args.input_dir is not None
+    ))
+
+    if not ((parsed_args.input_file is None) ^ (parsed_args.input_dir is None)):
+        argparser._arg_parser.print_help(file=sys.stderr)
+        sys.exit('[ERROR] One, and only one, of `--input-dir` or `--input-file` is required.')
+
+    if not os.path.isfile(parsed_args.config_file):
+        sys.exit(f'[ERROR] Could not find Ceph configuration file: {parsed_args.config_file}')
+
+    # ------------------------------
+    # Determine how to read input files
+    paths_to_input_files = []
+
+    if parsed_args.input_file and os.path.isfile(parsed_args.input_file):
+        paths_to_input_files = [parsed_args.input_file]
+
+    elif parsed_args.input_dir:
+        paths_to_input_files = [
+            os.path.join(parsed_args.input_dir, data_partition_file)
+            for data_partition_file in os.listdir(parsed_args.input_dir)
+        ]
+
+    for path_to_input_file in paths_to_input_files:
+        binary_data = None
+
+        if parsed_args.data_format == 'arrow' and path_to_input_file.endswith('.arrow'):
+            binary_data = SkyhookFileReader.read_gene_expr_to_arrow_binary(parsed_args.input_file)
+
+            if parsed_args.flag_use_wrapper:
+                binary_data = SkyhookFlatbufferMeta.binary_from_arrow_table(binary_data)
+
+        elif parsed_args.data_format != 'arrow':
+            sys.exit('Currently only "arrow" data format is supported')
+
+        if binary_data is None:
+            sys.exit('No binary data was parsed')
+
+        # Initialize the cluster handle
+        cluster = RadosConnector.connection_for_config(path_to_config=parsed_args.config_file)
+
+        cluster.connect()
+        print(f'Connection Information >>>\n{cluster.cluster_info()}\n<<<\n')
+
+        # Get an ioctx for a pool and write the data
+        with cluster.context_for_pool('single-cell') as pool_context:
+            pool_context.write_data(storage_obj_name='public.immune.0', storage_obj_data=binary_data)
