@@ -36,6 +36,36 @@ skyhook_type = skyhook.DataTypes.SDT_UINT16
 
 
 # ------------------------------
+# Static data conversion functions
+def arrow_binary_from_table(arrow_table):
+    arrow_buffer  = pyarrow.BufferOutputStream()
+    stream_writer = pyarrow.RecordBatchStreamWriter(arrow_buffer, arrow_table.schema)
+
+    for record_batch in arrow_table.to_batches():
+        stream_writer.write_batch(record_batch)
+
+    stream_writer.close()
+
+    # TODO: see if to_pybytes() is necessary
+    # return arrow_buffer.getvalue().to_pybytes()
+
+    return arrow_buffer.getvalue()
+
+
+def arrow_table_from_binary(cls, data_blob):
+    stream_reader = pyarrow.ipc.open_stream(data_blob)
+
+    deserialized_batches = [
+        deserialized_batch
+        for deserialized_batch in stream_reader
+    ]
+
+    stream_reader.close()
+
+    return pyarrow.Table.from_batches(deserialized_batches, schema=stream_reader.schema)
+
+
+# ------------------------------
 # Classes
 class SkyhookGeneExpression(object):
 
@@ -160,29 +190,6 @@ class SkyhookGeneExpression(object):
 
         return pyarrow.Table.from_arrays(cell_expression_arrays, schema=data_schema)
 
-    def serialize_as_sft_arrow(self, arrow_table):
-        arrow_buffer  = pyarrow.BufferOutputStream()
-        stream_writer = pyarrow.RecordBatchStreamWriter(arrow_buffer, arrow_table.schema)
-
-        for record_batch in arrow_table.to_batches():
-            stream_writer.write_batch(record_batch)
-
-        stream_writer.close()
-
-        return arrow_buffer.getvalue()
-
-    def deserialize_from_sft_arrow(self, data_blob):
-        stream_reader = pyarrow.ipc.open_stream(data_blob)
-
-        deserialized_batches = [
-            deserialized_batch
-            for deserialized_batch in stream_reader
-        ]
-
-        stream_reader.close()
-
-        return deserialized_batches
-
     def cell_expression_table(self, start=0, end=None):
         if end is None:
             end = self.gene_expr.cells.shape[0]
@@ -245,174 +252,41 @@ class SkyhookGeneExpression(object):
             yield batch_id, self.cell_expression_table(start=start, end=end)
 
 
-class GeneExpressionArrowReader(object):
-
-    logger = logging.getLogger('{}.{}'.format(__module__, __name__))
-    logger.setLevel(logging.INFO)
-
-    @classmethod
-    def read_single_cells_partitions(cls, path_to_directory, file_ext='.arrow'):
-        cls.logger.info('>>> reading data partitions from directory of arrow files')
-
-        partition_ndx    = 0
-        table_partitions = []
-        for partition_ndx, partition_file in enumerate(os.listdir(path_to_directory)):
-
-            with open(os.path.join(path_to_directory, partition_file), 'rb') as input_handle:
-                stream_reader = pyarrow.ipc.open_stream(input_handle.read())
-
-            table_partitions.append(
-                pyarrow.Table.from_batches(
-                    list(stream_reader),
-                    schema=stream_reader.schema
-                )
-            )
-
-        cls.logger.info(f'<<< read {partition_ndx + 1} partitions')
-        return pyarrow.concat_tables(table_partitions)
-
-    @classmethod
-    def read_single_cells(cls, path_to_outfile):
-        cls.logger.info('>>> reading data partitions from directory of arrow files')
-
-        with open(path_to_outfile, 'rb') as input_handle:
-            stream_reader = pyarrow.ipc.open_stream(input_handle.read())
-
-        cls.logger.info('<<< data read')
-
-        return pyarrow.Table.from_batches(list(stream_reader), schema=stream_reader.schema)
-
-
-class GeneExpressionArrowWriter(object):
-
-    logger = logging.getLogger('{}.{}'.format(__module__, __name__))
-    logger.setLevel(logging.INFO)
-
-    @classmethod
-    def write_single_cells_batch(cls, gene_expr, path_to_directory, batch_size=1000):
-        cls.logger.info('>>> writing data partitions into directory of arrow files')
-
-        for ndx, table_partition in gene_expr.cell_expression_batched(batch_size=batch_size):
-            arrow_buffer = pyarrow.BufferOutputStream()
-
-            # write record batches to arrow_buffer
-            batch_writer = pyarrow.RecordBatchStreamWriter(arrow_buffer, table_partition.schema)
-            for record_batch in table_partition.to_batches():
-                batch_writer.write_batch(record_batch)
-            batch_writer.close()
-
-            # write contents of arrow_buffer to binary file
-            path_to_arrow_file = os.path.join(path_to_directory, '{}-{}-{}.arrow'.format(
-                ndx, table_partition.num_columns, table_partition.column_names[0]
-            ))
-            with open(path_to_arrow_file, 'wb') as output_handle:
-                output_handle.write(arrow_buffer.getvalue().to_pybytes())
-
-        cls.logger.info('<<< data written')
-
-    @classmethod
-    def write_single_cells_all(cls, gene_expr, path_to_outfile):
-        data_schema = (
-            gene_expr.arrow_schema_for_cells()
-                     .with_metadata(
-                          gene_expr.skyhook_metadata_by_cell()
-                                   .to_byte_coercible()
-                      )
-        )
-
-        cls.logger.info('>>> writing data in single arrow file')
-
-        with open(path_to_outfile, 'wb') as arrow_handle:
-                batch_writer = pyarrow.RecordBatchFileWriter(arrow_handle, data_schema)
-
-                for record_batch in gene_expr.to_arrow_table(data_schema).to_batches():
-                    batch_writer.write_batch(record_batch)
-
-        cls.logger.info('<<< data written')
-
-
-class GeneExpressionParquetWriter(object):
-
-    logger = logging.getLogger('{}.{}'.format(__module__, __name__))
-    logger.setLevel(logging.INFO)
-
-    @classmethod
-    def write_single_cells_batch(cls, gene_expr, path_to_directory, batch_size=1000):
-        cls.logger.info('>>> writing data partitions into directory of parquet files')
-
-        for ndx, table_partition in gene_expr.cell_expression_batched(batch_size=batch_size):
-            path_to_parquet_file = os.path.join(path_to_directory, '{}-{}-{}.parquet'.format(
-                ndx, table_partition.num_columns, table_partition.column_names[0]
-            ))
-
-            pyarrow.parquet.write_table(table_partition, path_to_parquet_file)
-
-        cls.logger.info('<<< data written')
-
-    @classmethod
-    def write_single_cells_all(cls, gene_expr, path_to_outfile):
-        data_schema = (
-            gene_expr.arrow_schema_for_cells()
-                     .with_metadata(
-                          gene_expr.skyhook_metadata_by_cell()
-                                   .to_byte_coercible()
-                      )
-        )
-
-        cls.logger.info('>>> writing data in single parquet file')
-
-        pyarrow.parquet.write_table(gene_expr.to_arrow_table(data_schema), path_to_outfile)
-
-        cls.logger.info('<<< data written')
-
-
-class SkyhookFlatbufferTable(object):
-    """
-    Flatbuffer methods return 0 on failure.
-    """
-
-    logger = logging.getLogger('{}.{}'.format(__module__, __name__))
-    logger.setLevel(logging.INFO)
-
-    @classmethod
-    def from_binary(cls, flatbuffer_binary, offset=0):
-        return cls(Table.Table.GetRootAsTable(flatbuffer_binary, offset))
-
-    def __init__(self, flatbuffer_obj, **kwargs):
-        super().__init__(**kwargs)
-
-        self.fb_obj = flatbuffer_obj
-
-    def get_data_format(self):
-        return skyhook.FormatTypes.__enum_names__[self.fb_obj.DataFormatType()]
-
-    def is_arrow_type(self):
-        return self.fb_obj.DataFormatType() == skyhook.FormatTypes.SFT_ARROW
-
-    def get_schema(self):
-        return self.fb_obj.DataSchema()
-
-    def get_table_name(self):
-        return self.fb_obj.TableName()
-
-    def get_data_as_arrow(self):
-        pass
-
-    def get_row_count(self):
-        return self.fb_obj.Nrows()
-
-
 class SkyhookFlatbufferMeta(object):
-    """
-    Flatbuffer methods return 0 on failure.
-    """
 
     logger = logging.getLogger('{}.{}'.format(__module__, __name__))
     logger.setLevel(logging.INFO)
 
     @classmethod
-    def from_binary(cls, flatbuffer_binary, offset=0):
+    def from_binary_flatbuffer(cls, flatbuffer_binary, offset=0):
         return cls(FB_Meta.FB_Meta.GetRootAsFB_Meta(flatbuffer_binary, offset))
+
+    @classmethod
+    def binary_from_arrow_table(cls, binary_arrow_table):
+        # initialize a flatbuffer builder with a count of expected contiguous bytes needed,
+        # accommodating each fixed-size field of the FB_Meta flatbuffer
+        partial_byte_count = (4 + 8 + 4 + 8 + 8 + 4)
+        builder = flatbuffers.Builder(partial_byte_count + len(binary_arrow_table))
+
+        # add the serialized data first (build flatbuffer from back to front)
+        #wrapped_data_blob = builder.CreateByteVector(binary_arrow_table.to_pybytes())
+        wrapped_data_blob = builder.CreateByteVector(binary_arrow_table)
+
+        # construct the remaining flatbuffer structure
+        FB_Meta.FB_MetaStart(builder)
+
+        FB_Meta.FB_MetaAddBlobFormat(builder, skyhook.FormatTypes.SFT_ARROW)
+        FB_Meta.FB_MetaAddBlobData(builder, wrapped_data_blob)
+        FB_Meta.FB_MetaAddBlobSize(builder, len(binary_arrow_table))
+        FB_Meta.FB_MetaAddBlobDeleted(builder, False)
+        FB_Meta.FB_MetaAddBlobOrigOff(builder, 0)
+        FB_Meta.FB_MetaAddBlobOrigLen(builder, len(binary_arrow_table))
+        FB_Meta.FB_MetaAddBlobCompression(builder, 0)
+
+        builder.Finish(FB_Meta.FB_MetaEnd(builder))
+
+        # return the finished binary blob representing FBMeta(<Arrow binary>)
+        return builder.Output()
 
     def __init__(self, flatbuffer_obj, **kwargs):
         super().__init__(**kwargs)
@@ -439,122 +313,136 @@ class SkyhookFlatbufferMeta(object):
         return deserialized_table
 
 
-class SkyhookFlatbufferWriter(object):
+class SkyhookFileReader(object):
+
     logger = logging.getLogger('{}.{}'.format(__module__, __name__))
     logger.setLevel(logging.INFO)
 
     @classmethod
-    def tabular_arrow_buffer(self, gene_expr, output_dir, batch_size=500):
-        """
-        Write object, in-order
-        """
+    def read_gene_expr_partitions_to_arrow_table(cls, path_to_directory, file_ext='.arrow'):
+        cls.logger.info('>>> reading data partitions from directory of arrow files')
 
-        # byte counts of fixed-size, or known apriori, fields
-        partial_byte_count = (
-            4 + 4 + 4 + 4 +
-            len(gene_expr.table_name.encode('utf-8')) +
-            8 + 4 + 8 + 8 + 4
-        )
+        # initialize these variables, just in case there are no files in path_to_directory
+        table_partitions = []
 
-        # for each partition of the gene expression (arrow table)
-        for ndx, table_partition in gene_expr.cell_expression_batched(batch_size):
-            table_binary = gene_expr.serialize_as_sft_arrow(table_partition)
+        for partition_file in os.listdir(path_to_directory):
+            if not partition_file.endswith(file_ext): continue
 
-            # byte counts of fields that needed to be computed
-            table_byte_count = (
-                len(table_partition.schema.metadata['METADATA_DATA_SCHEMA'.encode('utf-8')]) +
-                (table_partition.num_columns << 4) +
-                table_binary.size
-            )
+            with open(os.path.join(path_to_directory, partition_file), 'rb') as input_handle:
+                table_partitions.append(arrow_table_from_binary(input_handle.read()))
 
-            '''
-            # Needs to be for Table
-            builder = flatbuffers.Builder(partial_byte_count + table_byte_count)
-
-            # we want to serialize the data first (build vector from back to front)
-            wrapped_data_blob = builder.CreateByteVector(table_binary.to_pybytes())
-
-            FB_Meta.FB_MetaStart(builder)
-
-            FB_Meta.FB_MetaAddBlobFormat(builder, 1)
-            FB_Meta.FB_MetaAddBlobData(builder, wrapped_data_blob)
-            FB_Meta.FB_MetaAddBlobSize(builder, table_binary.size)
-            FB_Meta.FB_MetaAddBlobDeleted(builder, False)
-            FB_Meta.FB_MetaAddBlobOrigOff(builder, 0)
-            FB_Meta.FB_MetaAddBlobOrigLen(builder, table_binary.size)
-            FB_Meta.FB_MetaAddBlobCompression(builder, 0)
-
-            builder.Finish(FB_Meta.FB_MetaEnd(builder))
-
-            return builder.Output()
-            '''
-
-        return None
+        cls.logger.info(f'<<< read {len(table_partitions)} partitions')
+        return pyarrow.concat_tables(table_partitions)
 
     @classmethod
-    def table_record_arrow_buffer(self, row_id, column_count, arrow_buffer, initial_byte_count=0):
+    def read_gene_expr_to_arrow_table(cls, path_to_infile):
+        cls.logger.info('>>> reading gene expression from single arrow file')
 
-        partial_byte_count = 8
+        with open(path_to_infile, 'rb') as input_handle:
+            gene_expr_table = arrow_table_from_binary(input_handle.read())
 
-        if not initial_byte_count:
-            # ID + 8 bytes per field + bytes of data
-            initial_byte_count = 8 + (column_count << 3)  + arrow_buffer.size
+        cls.logger.info('<<< data read into arrow table')
 
-        # for each partition of the gene expression (arrow table)
-        for ndx, table_partition in gene_expr.cell_expression_batched(batch_size):
-            table_binary = gene_expr.serialize_as_sft_arrow(table_partition)
-
-        builder = flatbuffers.Builder(initial_byte_count)
-
-        Record.RecordStart(builder)
-
-        # RID is a uint64, and so it's 8 bytes
-        Record.RecordAddRID(row_id.to_bytes(8, byteorder='little'))
-
-        # Record.RecordAddNullbits
-
-        builder.Finish(Record.RecordEnd(builder))
-
-        return builder.Output()
+        return gene_expr_table
 
     @classmethod
-    def wrapped_arrow_buffer(self, gene_expr, output_dir, batch_size=500):
-        """
-        Write object, in-order
-        """
+    def read_gene_expr_to_arrow_binary(cls, path_to_infile):
+        cls.logger.info('>>> reading gene expression from single arrow file')
 
-        # accommodate each fixed-size field of the FB_Meta flatbuffer
-        partial_byte_count = (4 + 8 + 4 + 8 + 8 + 4)
+        with open(path_to_infile, 'rb') as input_handle:
+            gene_expr_table = input_handle.read()
 
-        # for each partition of the gene expression (arrow table)
-        for ndx, table_partition in gene_expr.cell_expression_batched(batch_size):
-            table_binary = gene_expr.serialize_as_sft_arrow(table_partition)
+        cls.logger.info('<<< data read as binary')
 
-            # construct the flatbuffer structure to contain the binary data
-            builder = flatbuffers.Builder(partial_byte_count + table_binary.size)
+        return gene_expr_table
 
-            # add the serialized data first (build flatbuffer from back to front)
-            wrapped_data_blob = builder.CreateByteVector(table_binary.to_pybytes())
 
-            FB_Meta.FB_MetaStart(builder)
+class SkyhookFileWriter(object):
+    logger = logging.getLogger('{}.{}'.format(__module__, __name__))
+    logger.setLevel(logging.INFO)
 
-            FB_Meta.FB_MetaAddBlobFormat(builder, skyhook.FormatTypes.SFT_ARROW)
-            FB_Meta.FB_MetaAddBlobData(builder, wrapped_data_blob)
-            FB_Meta.FB_MetaAddBlobSize(builder, table_binary.size)
-            FB_Meta.FB_MetaAddBlobDeleted(builder, False)
-            FB_Meta.FB_MetaAddBlobOrigOff(builder, 0)
-            FB_Meta.FB_MetaAddBlobOrigLen(builder, table_binary.size)
-            FB_Meta.FB_MetaAddBlobCompression(builder, 0)
-
-            builder.Finish(FB_Meta.FB_MetaEnd(builder))
-
-            # Serialize flatbuffer structure to disk
+    @classmethod
+    def write_gene_expr_partitions_flatbuffer(cls, gene_expr, output_dir, batch_size=100):
+        # tbl_part is table partition
+        for ndx, tbl_part in gene_expr.cell_expression_batched(batch_size):
+            # Generate path to binary file based on table partition metadata
             path_to_blob = os.path.join(
                 output_dir,
-                '{}-{}-{}.skyhook-blob'.format(
-                    ndx, table_partition.num_columns, table_partition.column_names[0]
-                )
+                '{}-{}-{}.skyhook'.format(ndx, tbl_part.num_columns, tbl_part.column_names[0])
             )
 
+            # Serialize flatbuffer structure to disk
+            fb_meta_wrapped_binary = SkyhookFlatbufferMeta.binary_from_arrow_table(
+                arrow_binary_from_table(tbl_part)
+            )
             with open(path_to_blob, 'wb') as blob_handle:
-                blob_handle.write(builder.Output())
+                blob_handle.write(fb_meta_wrapped_binary)
+
+    @classmethod
+    def write_gene_expr_partitions_arrow(cls, gene_expr, output_dir, batch_size=100):
+        cls.logger.info('>>> writing data partitions into directory of arrow files')
+
+        # tbl_part is table partition
+        for ndx, tbl_part in gene_expr.cell_expression_batched(batch_size=batch_size):
+            # Generate path to binary file based on table partition metadata
+            path_to_blob = os.path.join(
+                output_dir,
+                '{}-{}-{}.arrow'.format(ndx, tbl_part.num_columns, tbl_part.column_names[0])
+            )
+
+            # Serialize flatbuffer structure to disk
+            arrow_binary_data = arrow_binary_from_table(tbl_part)
+            with open(path_to_blob, 'wb') as blob_handle:
+                blob_handle.write(arrow_binary_data)
+
+        cls.logger.info('<<< data written')
+
+    @classmethod
+    def write_gene_expr_arrow(cls, gene_expr, path_to_outfile):
+        data_schema = (
+            gene_expr.arrow_schema_for_cells()
+                     .with_metadata(
+                          gene_expr.skyhook_metadata_by_cell()
+                                   .to_byte_coercible()
+                      )
+        )
+
+        cls.logger.info('>>> writing data in single arrow file')
+
+        with open(path_to_outfile, 'wb') as arrow_handle:
+                batch_writer = pyarrow.RecordBatchFileWriter(arrow_handle, data_schema)
+
+                for record_batch in gene_expr.to_arrow_table(data_schema).to_batches():
+                    batch_writer.write_batch(record_batch)
+
+        cls.logger.info('<<< data written')
+
+    @classmethod
+    def write_gene_expr_partitions_parquet(cls, gene_expr, path_to_directory, batch_size=1000):
+        cls.logger.info('>>> writing data partitions into directory of parquet files')
+
+        # tbl_part is table partition
+        for ndx, tbl_part in gene_expr.cell_expression_batched(batch_size=batch_size):
+            path_to_parquet_file = os.path.join(path_to_directory, '{}-{}-{}.parquet'.format(
+                ndx, tbl_part.num_columns, tbl_part.column_names[0]
+            ))
+
+            pyarrow.parquet.write_table(tbl_part, path_to_parquet_file)
+
+        cls.logger.info('<<< data written')
+
+    @classmethod
+    def write_gene_expr_parquet(cls, gene_expr, path_to_outfile):
+        data_schema = (
+            gene_expr.arrow_schema_for_cells()
+                     .with_metadata(
+                          gene_expr.skyhook_metadata_by_cell()
+                                   .to_byte_coercible()
+                      )
+        )
+
+        cls.logger.info('>>> writing data in single parquet file')
+
+        pyarrow.parquet.write_table(gene_expr.to_arrow_table(data_schema), path_to_outfile)
+
+        cls.logger.info('<<< data written')
