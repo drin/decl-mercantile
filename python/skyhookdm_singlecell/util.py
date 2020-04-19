@@ -1,4 +1,15 @@
+import sys
+import logging
 import argparse
+
+import importlib
+
+
+# ------------------------------
+# Setup logger, primarily for optional imports
+module_logger = logging.getLogger('util')
+module_logger.addHandler(logging.StreamHandler(sys.stdout))
+module_logger.setLevel(logging.DEBUG)
 
 
 def normalize_str(str_or_bytes, byte_encoding='utf-8'):
@@ -7,6 +18,18 @@ def normalize_str(str_or_bytes, byte_encoding='utf-8'):
 
     return str_or_bytes
 
+
+def try_import(module_name, is_required=False, module_package=None):
+    imported_module = None
+
+    try:
+        imported_module = importlib.import_module(module_name, package=module_package)
+
+    except ModuleNotFoundError as import_err:
+        module_logger.warn(f'Error importing module {module_name}:\n{import_err}')
+
+    finally:
+        return imported_module
 
 # ------------------------------
 # utility classes
@@ -29,6 +52,17 @@ class ArgparseBuilder(object):
             ,required=required
             ,help=(help_str or
                    'Path to directory containing input files for this program to process')
+        )
+
+        return self
+
+    def add_config_file_arg(self, required=False, help_str='', default=''):
+        self._arg_parser.add_argument(
+             '--config-file'
+            ,dest='config_file'
+            ,type=str
+            ,required=required
+            ,help=(help_str or 'Path to config file for this program to process')
         )
 
         return self
