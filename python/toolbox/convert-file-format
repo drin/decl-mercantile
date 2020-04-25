@@ -6,10 +6,14 @@ import time
 import logging
 import tracemalloc
 
+import numpy
+import pyarrow
+
 # classes
+from skyhookdm_singlecell import skyhook
 from skyhookdm_singlecell.util import ArgparseBuilder
 from skyhookdm_singlecell.parsers import GeneExpressionMatrixParser
-from skyhookdm_singlecell.dataformats import (SkyhookGeneExpression, SkyhookFileWriter)
+from skyhookdm_singlecell.dataformats import (SkyhookDataWrapper, SkyhookFileWriter)
 
 
 # Set-up logger
@@ -104,6 +108,86 @@ def stop_analysis(flag_analysis):
     return stop_time
 
 
+def parse_input_file(input_dir, files_have_header):
+    logger.info('>>> parsing gene expression')
+
+    gene_expr, gene_ann, cell_ann = GeneExpressionMatrixParser.gene_expr_from_dir(
+        input_dir, has_header=files_have_header
+    )
+
+    # debug is module variable
+    if debug:
+        logger.debug('--- subsampling data to 100 genes and 20 cells')
+        gene_expr.subsample_by_counts(gene_count=100, cell_count=20)
+
+    logger.info('--- normalizing gene expression')
+    gene_expr.normalize_expression()
+
+    logger.debug('--- gene expression shape: {}'.format(gene_expr.expression.shape))
+    sample = gene_expr.expression[:3]
+
+    try:
+        logger.debug(sample[sample > 0])
+
+    except Exception:
+        logger.debug(f'Malformatted attempt to print non-zeros.\nsample: {sample}')
+
+    logger.info('<<< gene expression parsed')
+
+    return gene_expr, gene_ann, cell_ann
+
+
+def write_partitions_to_filesystem(data_wrapper, output_dir, partition_size,
+                                   use_fb_meta, file_format, data_format,
+                                   file_ext='skyhook'):
+    logger.info('>>> serializing cell expression')
+
+    # make directories if necessary
+    if not os.path.isdir(output_dir): os.makedirs(output_dir)
+
+    # simple binary formats
+    if file_format == 'arrow':
+        logger.info('--- writing in arrow binary format')
+        SkyhookFileWriter.write_partitions_to_arrow(data_wrapper, output_dir, partition_size)
+
+    elif file_format == 'parquet':
+        logger.info('--- writing in parquet binary format')
+        SkyhookFileWriter.write_partitions_to_parquet(data_wrapper, output_dir, partition_size)
+
+    # TODO: Eventually add row-based flatbuffer format that doesn't use fb_meta
+    elif file_format == 'flatbuffer':
+
+        # Place into a flatbuffer structure in specified data format
+        if use_fb_meta and data_format == 'arrow':
+            logger.info('--- serializing data in arrow format wrapped in fb_meta')
+
+            SkyhookFileWriter.write_partitions_to_flatbuffer(
+                data_wrapper, output_dir, partition_size
+            )
+
+    else:
+        logger.error(f'Unknown file format: {file_format}')
+
+    logger.info('<<< cell expression serialized')
+
+
+def write_data_to_filesystem(data_wrapper, output_file):
+    logger.info('>>> serializing gene expression')
+
+    if os.path.isfile(output_file):
+        err_msg = 'Serialized file already exists. Finishing...'
+        logger.error(err_msg)
+        sys.exit(err_msg)
+
+    if output_file.endswith('arrow'):
+        SkyhookFileWriter.write_gene_expr_arrow(data_wrapper, output_file)
+
+    elif output_file.endswith('parquet'):
+        SkyhookFileWriter.write_gene_expr_parquet(data_wrapper, output_file)
+
+    logger.info('<<< gene expression serialized')
+
+
 # ------------------------------
 if __name__ == '__main__':
     logger.debug('Parsed command-line arguments:\n{}'.format(
@@ -112,9 +196,6 @@ if __name__ == '__main__':
             for arg_name, arg_val in vars(parsed_args).items()
         ])
     ))
-
-    gene_expr            = None
-    skyhook_expr_wrapper = None
 
     if parsed_args.data_format not in ('arrow',):
         error_msg = f'xxx Unsupported data format: {parsed_args.data_format}'
@@ -126,96 +207,86 @@ if __name__ == '__main__':
     # ------------------------------
     # Parse input file
 
+    gene_expr = None
     if os.path.isdir(parsed_args.input_dir):
-        logger.info('>>> parsing gene expression')
-
-        gene_expr = GeneExpressionMatrixParser.gene_expr_from_dir(
+        gene_expr, gene_ann, cell_ann = parse_input_file(
             parsed_args.input_dir,
-            has_header=parsed_args.flag_has_header
+            parsed_args.flag_has_header
         )
 
-        if debug:
-            logger.debug('--- subsampling data to 100 genes and 20 cells')
-            gene_expr.subsample_by_counts(gene_count=100, cell_count=20)
+    if gene_expr is None:
+        sys.exit('Could not parse gene expression')
 
-        logger.info('--- normalizing gene expression')
-        gene_expr.normalize_expression()
-        skyhook_expr_wrapper = SkyhookGeneExpression(gene_expr)
+    # initialize wrappers here
+    table_name = os.path.basename(parsed_args.input_dir)
 
-        logger.debug('--- gene expression shape: {}'.format(gene_expr.expression.shape))
-        sample = gene_expr.expression[:3]
+    skyhook_expr_wrapper = SkyhookDataWrapper(
+        table_name, gene_expr.expression, gene_expr.cells
+    )
 
-        try:
-            logger.debug(sample[sample > 0])
+    skyhook_gene_wrapper = SkyhookDataWrapper(
+        table_name, gene_ann.annotations, gene_ann.headers,
+        type_for_numpy=numpy.str, type_for_arrow=pyarrow.string(),
+        type_for_skyhook=skyhook.DataTypes.SDT_STRING
+    )
 
-        except Exception:
-            logger.debug(f'Malformatted attempt to print non-zeros.\nsample: {sample}')
-
-        logger.info('<<< gene expression parsed')
-
+    skyhook_cell_wrapper = SkyhookDataWrapper(
+        table_name, cell_ann.annotations, cell_ann.headers,
+        type_for_numpy=numpy.str, type_for_arrow=pyarrow.string(),
+        type_for_skyhook=skyhook.DataTypes.SDT_STRING
+    )
+    
     # Log analysis after parsing the input file
     parse_time = snapshot_analysis(parsed_args.should_analyze)
 
     # ------------------------------
     # Write data in partitions
     if parsed_args.output_dir is not None:
-        logger.info('>>> serializing cell expression')
+        write_partitions_to_filesystem(
+            skyhook_expr_wrapper,
+            parsed_args.output_dir,
+            parsed_args.batch_size,
+            parsed_args.flag_use_wrapper,
+            parsed_args.output_file_format,
+            parsed_args.data_format
+        )
 
-        if not os.path.isdir(parsed_args.output_dir):
-            os.makedirs(parsed_args.output_dir)
+        write_partitions_to_filesystem(
+            skyhook_gene_wrapper,
+            parsed_args.output_dir,
+            parsed_args.batch_size,
+            parsed_args.flag_use_wrapper,
+            parsed_args.output_file_format,
+            parsed_args.data_format,
+            'genes.skyhook'
+        )
 
-        if parsed_args.output_file_format == 'arrow':
-            logger.info('--- writing in arrow binary format')
-            SkyhookFileWriter.write_gene_expr_partitions_arrow(
-                skyhook_expr_wrapper, parsed_args.output_dir, parsed_args.batch_size
-            )
-
-        elif parsed_args.output_file_format == 'parquet':
-            logger.info('--- writing in parquet binary format')
-            SkyhookFileWriter.write_gene_expr_partitions_parquet(
-                skyhook_expr_wrapper, parsed_args.output_dir, parsed_args.batch_size
-            )
-
-        elif parsed_args.output_file_format == 'flatbuffer':
-            logger.info('--- writing to flatbuffer binary file')
-
-            # Place into a flatbuffer structure in specified data format
-            if parsed_args.flag_use_wrapper and parsed_args.data_format == 'arrow':
-                logger.info('--- serializing data in wrapped arrow format')
-
-                SkyhookFileWriter.write_gene_expr_partitions_flatbuffer(
-                    skyhook_expr_wrapper, parsed_args.output_dir, parsed_args.batch_size
-                )
-
-            elif not parsed_args.flag_use_wrapper and parsed_args.data_format == 'arrow':
-                logger.info('--- serializing data in skyhook arrow format')
-
-                SkyhookFileWriter.write_gene_expr_partitions_arrow(
-                    skyhook_expr_wrapper, parsed_args.output_dir, parsed_args.batch_size
-                )
-
-        else:
-            logger.error(f'Unknown file format: {parsed_args.output_file_format}')
-
-        logger.info('<<< cell expression serialized')
+        write_partitions_to_filesystem(
+            skyhook_cell_wrapper,
+            parsed_args.output_dir,
+            parsed_args.batch_size,
+            parsed_args.flag_use_wrapper,
+            parsed_args.output_file_format,
+            parsed_args.data_format,
+            'cells.skyhook'
+        )
 
     # ------------------------------
     # Write data in a single file
     if parsed_args.output_file is not None:
-        logger.info('>>> serializing gene expression')
+        write_data_to_filesystem(skyhook_expr_wrapper, parsed_args.output_file)
 
-        if os.path.isfile(parsed_args.output_file):
-            err_msg = 'Serialized file already exists. Finishing...'
-            logger.error(err_msg)
-            sys.exit(err_msg)
+        write_data_to_filesystem(
+            skyhook_gene_wrapper,
+            parsed_args.output_file,
+            '{}.genes{}'.format(*os.path.splitext(parsed_args.output_file))
+        )
 
-        if parsed_args.output_file.endswith('arrow'):
-            SkyhookFileWriter.write_gene_expr_arrow(skyhook_expr_wrapper, parsed_args.output_file)
-
-        elif parsed_args.output_file.endswith('parquet'):
-            SkyhookFileWriter.write_gene_expr_parquet(skyhook_expr_wrapper, parsed_args.output_file)
-
-        logger.info('<<< gene expression serialized')
+        write_data_to_filesystem(
+            skyhook_cell_wrapper,
+            parsed_args.output_file,
+            '{}.cells{}'.format(*os.path.splitext(parsed_args.output_file))
+        )
 
     # Log analysis after writing output file(s)
     write_time = snapshot_analysis(parsed_args.should_analyze)
