@@ -9,14 +9,14 @@ import scipy
 # ------------------------------
 # Classes
 class Annotation(object):
-    __slots__ = ('_headers', '_annotations')
+    __slots__ = ('headers', 'annotations')
 
     def __init__(self, headers, annotations):
-        self._headers     = headers
-        self._annotations = annotations
+        self.headers     = headers
+        self.annotations = annotations
 
     def __getitem__(self, col_name):
-        return self._annotations[:, numpy.where(self._headers == col_name)]
+        return self.annotations[:, numpy.where(self.headers == col_name)]
 
 
 class GeneExpression(object):
@@ -83,7 +83,7 @@ class GeneExpression(object):
         # for now we just assume the annotation file contains a proper superset of the cells in the
         # gene expression matrix
         cell_annotations = Annotation(
-             ann_data._headers
+             ann_data.headers
             ,ann_data[numpy.where(
                  numpy.isin(ann_data['cell'], self.cells)
              )]
@@ -117,7 +117,7 @@ class GeneExpression(object):
 
         # get the annotations that have cell IDs in our barcode dataset
         cell_annotations = Annotation(
-             ann_data._headers
+             ann_data.headers
             ,ann_data[numpy.where(
                  numpy.isin(ann_data['cell'], self.cells)
              )]
