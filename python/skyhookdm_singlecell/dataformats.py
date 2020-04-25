@@ -18,6 +18,9 @@ import flatbuffers
 from skyhookdm_singlecell import skyhook
 from skyhookdm_singlecell.Tables import Table, Record, FB_Meta
 
+# functions
+from skyhookdm_singlecell.util import batched_indices
+
 # variables from this package
 from skyhookdm_singlecell import (__skyhook_version__            ,
                                   __skyhook_data_schema_version__,
@@ -26,13 +29,6 @@ from skyhookdm_singlecell import (__skyhook_version__            ,
 # ------------------------------
 # Module-level Variables
 debug = True
-
-
-# Expression Value Representation
-# NOTE: these need to match logically, even though they have different representations
-numpy_type   = numpy.uint16
-arrow_type   = pyarrow.uint16()
-skyhook_type = skyhook.DataTypes.SDT_UINT16
 
 
 # ------------------------------
@@ -52,7 +48,7 @@ def arrow_binary_from_table(arrow_table):
     return arrow_buffer.getvalue()
 
 
-def arrow_table_from_binary(cls, data_blob):
+def arrow_table_from_binary(data_blob):
     stream_reader = pyarrow.ipc.open_stream(data_blob)
 
     deserialized_batches = [
@@ -60,75 +56,68 @@ def arrow_table_from_binary(cls, data_blob):
         for deserialized_batch in stream_reader
     ]
 
-    stream_reader.close()
-
     return pyarrow.Table.from_batches(deserialized_batches, schema=stream_reader.schema)
 
 
 # ------------------------------
 # Classes
-class SkyhookGeneExpression(object):
-
+class SkyhookDataWrapper(object):
     logger = logging.getLogger('{}.{}'.format(__module__, __name__))
     logger.setLevel(logging.INFO)
 
-    # TODO: make the data type to serialize and format to available module wide and/or to
-    # everything that needs to do the conversion. Hopefully parameterize it too
+    def __init__(self, table_name, domain_dataset, dataset_columns,
+                 type_for_numpy=numpy.uint16, type_for_arrow=pyarrow.uint16(),
+                 type_for_skyhook=skyhook.DataTypes.SDT_UINT16, **kwargs):
 
-    def __init__(self, gene_expression, **kwargs):
         super().__init__(**kwargs)
 
-        self.logger    = self.__class__.logger
-        self.gene_expr = gene_expression
+        # maintain type information for data conversions
+        self.numpy_type     = type_for_numpy
+        self.arrow_type     = type_for_arrow
+        self.skyhook_type   = type_for_skyhook
 
-        # hardcoded for now
-        self.gene_expr.expression.astype(dtype=numpy_type)
+        self.logger         = self.__class__.logger
+        self.domain_data    = domain_dataset.astype(dtype=self.numpy_type, copy=False)
+        self.dataset_cols   = dataset_columns
 
         # Skyhook metadata
         self.skyhook_schema = None
         self.db_schema      = ''
-        self.table_name     = 'gene_expression'
+        self.table_name     = table_name
 
-    def arrow_schema_for_cells(self, start_ndx=None, end_ndx=None):
-        # NOTE: pyarrow data type should match the data type used in skyhook data schema
+    def table_schema(self, from_col_ndx=None, to_col_ndx=None):
         return pyarrow.schema([
-            (cell_id, arrow_type)
-            for cell_id in self.gene_expr.cells[start_ndx:end_ndx]
+            (column_name, self.arrow_type)
+            for column_name in self.dataset_cols[from_col_ndx:to_col_ndx]
         ])
 
-    def schema_by_cell(self, start_ndx=0, end_ndx=None):
-        """
-        Create the skyhook schema description for a subset of the cells in this gene expression
-        matrix. Note, the `DataType` field should be kept in-sync with the datatype used in
-        serialization (see `arrow_schema_for_cells`).
-        """
-
-        # NOTE: this iterator can only be walked once
-        cell_iterator = enumerate(
-            self.gene_expr.cells[start_ndx:end_ndx],
-            start=start_ndx
+    def skyhook_data_schema(self, from_col_ndx=0, to_col_ndx=None):
+        col_iterator = enumerate(
+            self.dataset_cols[from_col_ndx:to_col_ndx],
+            start=from_col_ndx
         )
 
         return [
             skyhook.ColumnSchema(
-                col_id                         ,
-                skyhook_type                   ,
+                column_ndx                     ,
+                self.skyhook_type              ,
                 skyhook.KeyColumn.NOT_KEY      ,
                 skyhook.NullableColumn.NULLABLE,
-                cell_id
+                column_name
             )
 
-            for col_id, cell_id in cell_iterator
+            for column_ndx, column_name in col_iterator
         ]
 
-    def skyhook_metadata_by_cell(self, start_ndx=0, end_ndx=None):
+    def schema_skyhook_metadata(self, from_col_ndx=0, to_col_ndx=None):
         """
         Return formatted Skyhook metadata that will be stored with the arrow schema information.
         """
 
-        cell_expr_schema = '\n'.join(map(
+        # data schema is '\n' or ';' delimited information for each column
+        data_schema_as_str = '\n'.join(map(
             str,
-            self.schema_by_cell(start_ndx=start_ndx, end_ndx=end_ndx)
+            self.skyhook_data_schema(from_col_ndx, to_col_ndx)
         ))
 
         # return the Skyhook metadata tuple
@@ -137,13 +126,13 @@ class SkyhookGeneExpression(object):
             __skyhook_data_schema_version__   ,
             __skyhook_data_struct_version__   ,
             skyhook.FormatTypes.SFT_ARROW     ,
-            cell_expr_schema                  ,
+            data_schema_as_str                ,
             self.db_schema                    ,
             self.table_name                   ,
-            self.gene_expr.expression.shape[0]
+            self.domain_data.shape[0]
         )
 
-    def cells_to_arrow_recordbatch(self, data_schema, cell_start_ndx=None, cell_stop_ndx=None):
+    def as_arrow_recordbatches(self, data_schema, from_col_ndx=None, to_col_ndx=None):
         """
         Arrow format assumes that the columns are in the first dimension, not the second dimension.
 
@@ -151,105 +140,84 @@ class SkyhookGeneExpression(object):
         genes are columns). The schema is a column-based schema (cells).
         """
 
-        if cell_start_ndx is not None and cell_stop_ndx is not None:
-            cell_expr = list(map(
+        if from_col_ndx is not None and to_col_ndx is not None:
+            data_recordbatches = list(map(
                 numpy.ravel,
                 numpy.hsplit(
-                    self.gene_expr
-                        .expression[:, cell_start_ndx:cell_stop_ndx]
-                        .getA()
-                        .astype(dtype=numpy_type),
-                    cell_stop_ndx - cell_start_ndx
+                    self.domain_data[:, from_col_ndx:to_col_ndx].getA(),
+                    to_col_ndx - from_col_ndx
                 )
             ))
 
         else:
-            cell_expr = (
-                self.gene_expr
-                    .expression
-                    .transpose()
-                    .toarray()
-                    .astype(dtype=numpy_type)
-            )
+            data_recordbatches = self.domain_data.transpose().toarray()
 
-        return pyarrow.RecordBatch.from_arrays(cell_expr, schema=data_schema)
+        return pyarrow.RecordBatch.from_arrays(data_recordbatches, schema=data_schema)
 
-    def to_arrow_table(self, data_schema):
-        # convert matrix or ndarray into a list of 1-d arrays
-        cell_expression_arrays = list(
-            # apply `ravel()` to each list from `hsplit()` to yield list of <array_like>
-            map(
-                numpy.ravel,
-                # `hsplit()` returns a list of ndarrays
-                numpy.hsplit(
-                    self.gene_expr.expression.astype(dtype=numpy_type),
-                    self.gene_expr.expression.shape[1]
-                )
-            )
+    def as_arrow_table(self, data_schema):
+        """
+        Creates an Arrow Table with the given data schema.
+
+        Using `hsplit` and `ravel`, the domain_data matrix (or ndarray) is converted into a list of
+        1-d arrays. First, `hsplit()` returns a list of ndarrays; second, `ravel()` is applied to
+        each list from `hsplit()` to list of <array_like> objects.
+        """
+
+        # Converts a matrix (or ndarray) into a list of 1-d arrays.
+        column_data_arrays = list(
+            map(numpy.ravel, numpy.hsplit(self.domain_data, self.domain_data.shape[1]))
         )
 
-        return pyarrow.Table.from_arrays(cell_expression_arrays, schema=data_schema)
+        return pyarrow.Table.from_arrays(column_data_arrays, schema=data_schema)
 
-    def cell_expression_table(self, start=0, end=None):
-        if end is None:
-            end = self.gene_expr.cells.shape[0]
+    def as_partitioned_arrow_table(self, start=0, end=None):
+        if end is None: end = self.dataset_cols.shape[0]
 
         # ------------------------------
-        # Construct schema
+        # Construct schema for table partition
         self.logger.info(f'>>> constructing schema for partition ({start}:{end})')
 
-        skyhook_metadata = self.skyhook_metadata_by_cell(start, end).to_byte_coercible()
-        cell_expr_schema = (
-            self.arrow_schema_for_cells(start_ndx=start, end_ndx=end)
-                .with_metadata(skyhook_metadata)
+        table_schema_and_meta = (
+            self.table_schema(from_col_ndx=start, to_col_ndx=end)
+                .with_metadata(
+                     self.schema_skyhook_metadata(start, end)
+                         .to_byte_coercible()
+                 )
         )
 
         self.logger.info('<<< partition schema constructed')
 
         # ------------------------------
-        # slice of cell expression (columns) as arrays
+        # Get slice of domain data as arrays
         self.logger.info('>>> extracting cell expression slice')
 
-        cell_expr = None
+        domain_data_as_array = None
 
-        if isinstance(self.gene_expr.expression, scipy.sparse.coo_matrix):
-            cell_expr = (
-                self.gene_expr
-                    .expression
-                    .toarray()[:, start:end]
-                    .astype(dtype=numpy_type)
-            )
+        if isinstance(self.domain_data, scipy.sparse.coo_matrix):
+            domain_data_as_array = self.domain_data.toarray()[:, start:end]
 
-        elif isinstance(self.gene_expr.expression, numpy.matrix):
-            cell_expr = (
-                self.gene_expr
-                    .expression[:, start:end]
-                    .getA()
-                    .astype(dtype=numpy_type)
-            )
+        elif isinstance(self.domain_data, numpy.matrix):
+            domain_data_as_array = self.domain_data[:, start:end].getA()
+
+        elif isinstance(self.domain_data, numpy.ndarray):
+            domain_data_as_array = self.domain_data
 
         self.logger.info('<<< cell expression slice extracted')
 
+        # Create and return arrow table
         return pyarrow.Table.from_arrays(
-            list(map(numpy.ravel, numpy.hsplit(cell_expr, cell_expr.shape[1]))),
-            schema=cell_expr_schema
+            list(map(
+                numpy.ravel,
+                numpy.hsplit(domain_data_as_array, domain_data_as_array.shape[1])
+            )),
+            schema=table_schema_and_meta
         )
 
-    def batched_indices(self, element_count, batch_size):
-        for batch_id, batch_start in enumerate(range(0, element_count, batch_size), start=1):
+    def batched_table_partitions(self, batch_size=1000, column_count=None):
+        if column_count is None: column_count = self.dataset_cols.shape[0]
 
-            batch_end = batch_id * batch_size
-            if batch_end > element_count:
-                batch_end  = element_count
-
-            yield batch_id, batch_start, batch_end
-
-    def cell_expression_batched(self, batch_size=1000, cell_count=None):
-        if cell_count is None:
-            cell_count = self.gene_expr.cells.shape[0]
-
-        for batch_id, start, end in self.batched_indices(cell_count, batch_size):
-            yield batch_id, self.cell_expression_table(start=start, end=end)
+        for batch_id, start, end in batched_indices(column_count, batch_size):
+            yield batch_id, self.as_partitioned_arrow_table(start=start, end=end)
 
 
 class SkyhookFlatbufferMeta(object):
@@ -319,14 +287,14 @@ class SkyhookFileReader(object):
     logger.setLevel(logging.INFO)
 
     @classmethod
-    def read_gene_expr_partitions_to_arrow_table(cls, path_to_directory, file_ext='.arrow'):
-        cls.logger.info('>>> reading data partitions from directory of arrow files')
+    def read_data_partitions_as_arrow_table(cls, path_to_directory, file_ext='arrow'):
+        cls.logger.info('>>> reading binary data partitions into an arrow table')
 
         # initialize these variables, just in case there are no files in path_to_directory
         table_partitions = []
 
         for partition_file in os.listdir(path_to_directory):
-            if not partition_file.endswith(file_ext): continue
+            if not partition_file.endswith(f'.{file_ext}'): continue
 
             with open(os.path.join(path_to_directory, partition_file), 'rb') as input_handle:
                 table_partitions.append(arrow_table_from_binary(input_handle.read()))
@@ -335,26 +303,38 @@ class SkyhookFileReader(object):
         return pyarrow.concat_tables(table_partitions)
 
     @classmethod
-    def read_gene_expr_to_arrow_table(cls, path_to_infile):
-        cls.logger.info('>>> reading gene expression from single arrow file')
+    def read_data_file_as_arrow_table(cls, path_to_infile):
+        cls.logger.info('>>> reading binary data file into an arrow table')
 
         with open(path_to_infile, 'rb') as input_handle:
-            gene_expr_table = arrow_table_from_binary(input_handle.read())
+            data_table = arrow_table_from_binary(input_handle.read())
 
         cls.logger.info('<<< data read into arrow table')
 
-        return gene_expr_table
+        return data_table
 
     @classmethod
-    def read_gene_expr_to_arrow_binary(cls, path_to_infile):
-        cls.logger.info('>>> reading gene expression from single arrow file')
+    def read_data_file_as_flatbuffer(cls, path_to_infile):
+        cls.logger.info('>>> reading binary data file into a flatbuffer')
 
         with open(path_to_infile, 'rb') as input_handle:
-            gene_expr_table = input_handle.read()
+            binary_data = input_handle.read()
+
+        flatbuffer_obj = SkyhookFlatbufferMeta.from_binary_flatbuffer(binary_data)
+        cls.logger.info('<<< data read into arrow table')
+
+        return flatbuffer_obj
+
+    @classmethod
+    def read_data_file_as_binary(cls, path_to_infile):
+        cls.logger.info('>>> reading binary data file')
+
+        with open(path_to_infile, 'rb') as input_handle:
+            binary_data = input_handle.read()
 
         cls.logger.info('<<< data read as binary')
 
-        return gene_expr_table
+        return binary_data
 
 
 class SkyhookFileWriter(object):
@@ -362,13 +342,44 @@ class SkyhookFileWriter(object):
     logger.setLevel(logging.INFO)
 
     @classmethod
-    def write_gene_expr_partitions_flatbuffer(cls, gene_expr, output_dir, batch_size=100):
+    def write_to_arrow(cls, data_wrapper, path_to_outfile):
+        data_schema = data_wrapper.table_schema().with_metadata(
+            data_wrapper.schema_skyhook_metadata().to_byte_coercible()
+        )
+
+        cls.logger.info('>>> writing data in single arrow file')
+        with open(path_to_outfile, 'wb') as arrow_handle:
+                batch_writer = pyarrow.RecordBatchFileWriter(arrow_handle, data_schema)
+
+                for record_batch in data_wrapper.as_arrow_table(data_schema).to_batches():
+                    batch_writer.write_batch(record_batch)
+
+        cls.logger.info('<<< data written')
+
+    @classmethod
+    def write_to_parquet(cls, data_wrapper, path_to_outfile):
+        data_schema = data_wrapper.table_schema().with_metadata(
+            data_wrapper.schema_skyhook_metadata().to_byte_coercible()
+        )
+
+        cls.logger.info('>>> writing data in single parquet file')
+        pyarrow.parquet.write_table(data_wrapper.as_arrow_table(data_schema), path_to_outfile)
+
+        cls.logger.info('<<< data written')
+
+    @classmethod
+    def write_partitions_to_flatbuffer(cls, data_wrapper, output_dir,
+                                       batch_size=100, file_ext='skyhook'):
         # tbl_part is table partition
-        for ndx, tbl_part in gene_expr.cell_expression_batched(batch_size):
+        for ndx, tbl_part in data_wrapper.batched_table_partitions(batch_size):
             # Generate path to binary file based on table partition metadata
             path_to_blob = os.path.join(
                 output_dir,
-                '{}-{}-{}.skyhook'.format(ndx, tbl_part.num_columns, tbl_part.column_names[0])
+                '{:05d}-{}.{}'.format(
+                    ndx,
+                    tbl_part.column_names[0],
+                    file_ext
+                )
             )
 
             # Serialize flatbuffer structure to disk
@@ -379,15 +390,20 @@ class SkyhookFileWriter(object):
                 blob_handle.write(fb_meta_wrapped_binary)
 
     @classmethod
-    def write_gene_expr_partitions_arrow(cls, gene_expr, output_dir, batch_size=100):
+    def write_partitions_to_arrow(cls, data_wrapper, output_dir,
+                                  batch_size=100, file_ext='arrow'):
         cls.logger.info('>>> writing data partitions into directory of arrow files')
 
         # tbl_part is table partition
-        for ndx, tbl_part in gene_expr.cell_expression_batched(batch_size=batch_size):
+        for ndx, tbl_part in data_wrapper.batched_table_partitions(batch_size=batch_size):
             # Generate path to binary file based on table partition metadata
             path_to_blob = os.path.join(
                 output_dir,
-                '{}-{}-{}.arrow'.format(ndx, tbl_part.num_columns, tbl_part.column_names[0])
+                '{:05d}-{}.{}'.format(
+                    ndx,
+                    tbl_part.column_names[0],
+                    file_ext
+                )
             )
 
             # Serialize flatbuffer structure to disk
@@ -398,51 +414,21 @@ class SkyhookFileWriter(object):
         cls.logger.info('<<< data written')
 
     @classmethod
-    def write_gene_expr_arrow(cls, gene_expr, path_to_outfile):
-        data_schema = (
-            gene_expr.arrow_schema_for_cells()
-                     .with_metadata(
-                          gene_expr.skyhook_metadata_by_cell()
-                                   .to_byte_coercible()
-                      )
-        )
-
-        cls.logger.info('>>> writing data in single arrow file')
-
-        with open(path_to_outfile, 'wb') as arrow_handle:
-                batch_writer = pyarrow.RecordBatchFileWriter(arrow_handle, data_schema)
-
-                for record_batch in gene_expr.to_arrow_table(data_schema).to_batches():
-                    batch_writer.write_batch(record_batch)
-
-        cls.logger.info('<<< data written')
-
-    @classmethod
-    def write_gene_expr_partitions_parquet(cls, gene_expr, path_to_directory, batch_size=1000):
+    def write_partitions_to_parquet(cls, data_wrapper, path_to_directory,
+                                    batch_size=1000, file_ext='parquet'):
         cls.logger.info('>>> writing data partitions into directory of parquet files')
 
         # tbl_part is table partition
-        for ndx, tbl_part in gene_expr.cell_expression_batched(batch_size=batch_size):
-            path_to_parquet_file = os.path.join(path_to_directory, '{}-{}-{}.parquet'.format(
-                ndx, tbl_part.num_columns, tbl_part.column_names[0]
-            ))
+        for ndx, tbl_part in data_wrapper.batched_table_partitions(batch_size=batch_size):
+            path_to_parquet_file = os.path.join(
+                path_to_directory,
+                '{:05d}-{}.{}'.format(
+                    ndx,
+                    tbl_part.column_names[0],
+                    file_ext
+                )
+            )
 
             pyarrow.parquet.write_table(tbl_part, path_to_parquet_file)
-
-        cls.logger.info('<<< data written')
-
-    @classmethod
-    def write_gene_expr_parquet(cls, gene_expr, path_to_outfile):
-        data_schema = (
-            gene_expr.arrow_schema_for_cells()
-                     .with_metadata(
-                          gene_expr.skyhook_metadata_by_cell()
-                                   .to_byte_coercible()
-                      )
-        )
-
-        cls.logger.info('>>> writing data in single parquet file')
-
-        pyarrow.parquet.write_table(gene_expr.to_arrow_table(data_schema), path_to_outfile)
 
         cls.logger.info('<<< data written')
