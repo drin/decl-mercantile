@@ -2,6 +2,7 @@
 
 import os
 import sys
+import re
 
 from skyhookdm_singlecell.util import ArgparseBuilder
 from skyhookdm_singlecell.connectors import RadosConnector
@@ -28,10 +29,24 @@ argparser = (
                          required=False
                         ,help_str='Format of input data. Supports: "flatbuffer" | "arrow"'
                     )
+                   .add_ceph_pool_arg(required=True)
+                   .add_skyhook_table_arg(required=True)
                    .add_flatbuffer_flag_arg(required=False)
 )
 
 parsed_args, parsed_extra_args = argparser.parse_args()
+
+
+def comparator_filenames(path_to_arrow_file, re_file_id_prefix=r'^(\d+)-'):
+    re_match_obj = re.search(
+        re_file_id_prefix,
+        os.path.basename(path_to_arrow_file)
+    )
+
+    if re_match_obj is None:
+        sys.exit(f'File naming scheme unrecognized: {path_to_arrow_file}')
+
+    return int(re_match_obj.group(1))
 
 # ------------------------------
 # Main Logic
@@ -67,11 +82,25 @@ if __name__ == '__main__':
             for data_partition_file in os.listdir(parsed_args.input_dir)
         ]
 
-    for path_to_input_file in paths_to_input_files:
+    # ------------------------------
+    # Make sure files are in sorted order (temporary hack)
+    if len(paths_to_input_files) > 9:
+        paths_to_input_files = sorted(paths_to_input_files, key=comparator_filenames)
+
+
+    # Initialize the cluster handle
+    cluster = RadosConnector.connection_for_config(path_to_config=parsed_args.config_file)
+
+    cluster.connect()
+    print(f'Connection Information >>>\n{cluster.cluster_info()}\n<<<\n')
+
+    # ------------------------------
+    # Load each file, one by one (probably slow)
+    for input_id, path_to_input_file in enumerate(paths_to_input_files):
         binary_data = None
 
         if parsed_args.data_format == 'arrow' and path_to_input_file.endswith('.arrow'):
-            binary_data = SkyhookFileReader.read_gene_expr_to_arrow_binary(parsed_args.input_file)
+            binary_data = SkyhookFileReader.read_gene_expr_to_arrow_binary(path_to_input_file)
 
             if parsed_args.flag_use_wrapper:
                 binary_data = SkyhookFlatbufferMeta.binary_from_arrow_table(binary_data)
@@ -82,12 +111,28 @@ if __name__ == '__main__':
         if binary_data is None:
             sys.exit('No binary data was parsed')
 
-        # Initialize the cluster handle
-        cluster = RadosConnector.connection_for_config(path_to_config=parsed_args.config_file)
-
-        cluster.connect()
-        print(f'Connection Information >>>\n{cluster.cluster_info()}\n<<<\n')
-
         # Get an ioctx for a pool and write the data
-        with cluster.context_for_pool('single-cell') as pool_context:
-            pool_context.write_data(storage_obj_name='public.immune.0', storage_obj_data=binary_data)
+        binary_data_len = len(binary_data).to_bytes(4, byteorder='little')
+        with cluster.context_for_pool(parsed_args.ceph_pool) as pool_context:
+            pool_context.write_data(
+                storage_obj_name=f'public.{parsed_args.skyhook_table}.{input_id}',
+                storage_obj_data=(binary_data_len + binary_data)
+            )
+
+    path_to_cell_metadata = os.path.join(parsed_args.input_dir, '00001-cellkey.arrow')
+    path_to_gene_metadata = os.path.join(parsed_args.input_dir, '00001-featurekey.arrow')
+
+    with cluster.context_for_pool(parsed_args.ceph_pool) as pool_context:
+        cell_metadata   = SkyhookFileReader.read_gene_expr_to_arrow_binary(path_to_cell_metadata)
+        binary_data_len = len(binary_data).to_bytes(4, byteorder='little')
+        pool_context.write_data(
+            storage_obj_name=f'public.{parsed_args.skyhook_table}.cells',
+            storage_obj_data=(binary_data_len + cell_metadata)
+        )
+
+        gene_metadata   = SkyhookFileReader.read_gene_expr_to_arrow_binary(path_to_gene_metadata)
+        binary_data_len = len(binary_data).to_bytes(4, byteorder='little')
+        pool_context.write_data(
+            storage_obj_name=f'public.{parsed_args.skyhook_table}.genes',
+            storage_obj_data=(binary_data_len + gene_metadata)
+        )
