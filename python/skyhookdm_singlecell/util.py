@@ -190,5 +190,27 @@ class ArgparseBuilder(object):
 
         return self
 
+    def add_ceph_pool_arg(self, required=False, help_str=''):
+        self._arg_parser.add_argument(
+             '--pool'
+            ,dest='ceph_pool'
+            ,type=str
+            ,required=required
+            ,help=(help_str or 'Name of Ceph pool to use.')
+        )
+
+        return self
+
+    def add_skyhook_table_arg(self, required=False, help_str=''):
+        self._arg_parser.add_argument(
+             '--table'
+            ,dest='skyhook_table'
+            ,type=str
+            ,required=required
+            ,help=(help_str or 'Name of table to be used in SkyhookDM naming scheme')
+        )
+
+        return self
+
     def parse_args(self):
         return self._arg_parser.parse_known_args()
