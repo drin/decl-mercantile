@@ -19,6 +19,16 @@ def normalize_str(str_or_bytes, byte_encoding='utf-8'):
     return str_or_bytes
 
 
+def batched_indices(element_count, batch_size):
+    for batch_id, batch_start in enumerate(range(0, element_count, batch_size), start=1):
+
+        batch_end = batch_id * batch_size
+        if batch_end > element_count:
+            batch_end  = element_count
+
+        yield batch_id, batch_start, batch_end
+
+
 def try_import(module_name, is_required=False, module_package=None):
     imported_module = None
 
@@ -81,10 +91,33 @@ class ArgparseBuilder(object):
     def add_input_metadata_file_arg(self, required=False, help_str=''):
         self._arg_parser.add_argument(
              '--input-metadata'
-            ,dest='input_metadata'
+            ,dest='input_metadata_file'
             ,type=str
             ,required=required
             ,help=(help_str or 'Path to file containing metadata for this program to process')
+        )
+
+        return self
+
+    def add_metadata_target_arg(self, required=False, help_str=''):
+        self._arg_parser.add_argument(
+             '--metadata-target'
+            ,dest='metadata_target'
+            ,type=str
+            ,required=required
+            ,help=(help_str or 'Type of data described by provided metadata: <cells | genes>')
+        )
+
+        return self
+
+    def add_delimiter_arg(self, required=False, help_str=''):
+        self._arg_parser.add_argument(
+             '--field-delimiter'
+            ,dest='field_delimiter'
+            ,type=str
+            ,required=required
+            ,default='\t'
+            ,help=(help_str or 'String to use as delimiter between fields of each record (line)')
         )
 
         return self
@@ -172,6 +205,22 @@ class ArgparseBuilder(object):
         self._arg_parser.add_argument(
              '--data-files-have-header'
             ,dest='flag_has_header'
+            ,action='store_true'
+            ,required=required
+            ,help=(help_str or default_help_msg)
+        )
+
+        return self
+
+    def add_prepend_header_flag_arg(self, required=False, help_str=''):
+        default_help_msg = (
+            "Specifies that a header for cells or genes annotation files should be inserted. "
+            "<True | False>"
+        )
+
+        self._arg_parser.add_argument(
+             '--prepend-metadata-header'
+            ,dest='flag_add_header'
             ,action='store_true'
             ,required=required
             ,help=(help_str or default_help_msg)

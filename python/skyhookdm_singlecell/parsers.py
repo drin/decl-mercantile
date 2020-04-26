@@ -12,19 +12,27 @@ from skyhookdm_singlecell.singlecell import GeneExpression, Annotation
 from skyhookdm_singlecell.util import normalize_str
 
 
-class GeneListParser(object):
+def normalize_file_record(record_as_str, delim='\t'):
+    return (
+        normalize_str(record_as_str).strip()
+                                    .strip('"')
+                                    .split(delim)
+    )
+
+
+class GeneMetadataParser(object):
 
     __slots__ = ()
 
     @classmethod
-    def from_handle(cls, genelist_handle, has_header=True, delim='\t'):
+    def from_handle(cls, gene_metadata_handle, has_header=True, delim='\t'):
         """
-        This function iterates over each row in :genelist_handle:, building a numpy array
+        This function iterates over each row in :gene_metadata_handle:, building a numpy array
         containing each field of the row. Then, each row is accumulated into a python list to be
         returned as a numpy array (records from genelist file) or numpy arrays (fields for each
         genelist row).
 
-        :genelist_handle: (file-like)              A path to the metadata for genes.
+        :gene_metadata_handle: (file-like)              A path to the metadata for genes.
         :has_header:      (bool)                   A flag, determining whether to skip the first
                                                    line or not.
         :delim:           (string) (default: '\t') The delimiter to use to distinguish between
@@ -32,28 +40,36 @@ class GeneListParser(object):
                                                    in the genelist file).
         """
 
-        if not genelist_handle or genelist_handle.closed:
-            err_msg = 'Gene list file handle is closed or never opened.'
+        if not gene_metadata_handle or gene_metadata_handle.closed:
+            err_msg = 'Gene list file handle is closed or was never opened.'
 
             sys.stderr.write(f'{err_msg}\n')
             sys.exit(err_msg)
 
-        if has_header: next(genelist_handle)
+        gene_header = ['featurekey']
+        if has_header:
+            gene_header = normalize_file_record(next(gene_metadata_handle), delim)
 
-        gene_list = [
-            numpy.array(normalize_str(gene_line).strip().strip('"').split(delim), dtype=str)
-            for gene_line in genelist_handle
+        gene_metadata = [
+            numpy.array(normalize_file_record(gene_line, delim), dtype=str)
+            for gene_line in gene_metadata_handle
         ]
 
-        return numpy.array(gene_list, dtype=str)
+        # ------------------------------
+        # Returns a tuple: <array of headers>, <array of gene metadata rows>
+        # Note that a row of gene metadata is, itself, an array
+        return (
+            numpy.array(gene_header  , dtype=str),
+            numpy.array(gene_metadata, dtype=str)
+        )
 
 
-class CellIDParser(object):
+class CellMetadataParser(object):
 
     __slots__ = ()
 
     @classmethod
-    def from_handle(cls, cell_list_handle, has_header=True, delim='\t', fn_transform=None):
+    def from_handle(cls, cell_metadata_handle, has_header=True, delim='\t', fn_transform=None):
         """
         This function currently hardcodes the column to find the primary key for cells. For the
         MOCA dataset, the file was single column and straightforward. HCA metadata is incredibly
@@ -63,38 +79,34 @@ class CellIDParser(object):
         Currently, no validation of the file contents is done.
         """
 
-        if not cell_list_handle or cell_list_handle.closed:
-            err_msg = 'Cell list file handle is closed or never opened.'
+        if not cell_metadata_handle or cell_metadata_handle.closed:
+            err_msg = 'Cell list file handle is closed or was never opened.'
 
             sys.stderr.write(f'{err_msg}\n')
             sys.exit(err_msg)
 
-        cellkey_col_ndx = 0
+        cell_header = ['cellkey']
+        if has_header:
+            cell_header = normalize_file_record(next(cell_metadata_handle), delim)
 
-        with cell_list_handle:
-            if has_header:
-                next(cell_list_handle)
-                '''
-                Currently, not used, so just skip the header if it exists
-                metadata_columns = numpy.array(
-                    next(cell_list_handle).strip() .split(delim),
-                    dtype=str
-                )
-                '''
+        cell_metadata = [
+            numpy.array(normalize_file_record(cell_record, delim), dtype=str)
+            for cell_record in cell_metadata_handle
+        ]
 
-            # eventually migrate to a dynamic access such as this
-            # target_columns = numpy.where(metadata_columns in ['barcode',])
-
-            cell_ids = [
-                normalize_str(cell_record).strip().strip('"').split(delim)[cellkey_col_ndx]
-                for cell_record in cell_list_handle
-            ]
-
-        # return gene list as a numpy array of strings
+        # ------------------------------
+        # Returns a tuple: <array of headers>, <array of cell metadata rows>
+        # Note that a row of cell metadata is, itself, an array
         if fn_transform:
-            return numpy.array(list(map(fn_transform, cell_ids)), dtype=str)
+            return (
+                numpy.array(cell_header                           , dtype=str),
+                numpy.array(list(map(fn_transform, cell_metadata)), dtype=str)
+            )
 
-        return numpy.array(cell_ids, dtype=str)
+        return (
+            numpy.array(cell_header  , dtype=str),
+            numpy.array(cell_metadata, dtype=str)
+        )
 
 
 # ------------------------------
@@ -138,7 +150,7 @@ class GeneExpressionMatrixParser(object):
         compressed_path   = os.path.join(path_to_mtx_root, f'{component_name}.gz')
 
         if os.path.isfile(uncompressed_path):
-            return open(uncompressed_path, 'r')
+            return open(uncompressed_path, 'rb')
 
         elif os.path.isfile(compressed_path):
             return gzip.open(compressed_path, 'rb')
@@ -188,13 +200,13 @@ class GeneExpressionMatrixParser(object):
         This is a utility function that returns a closure to be mapped onto a list of barcodes.
         """
 
-        def closure_cell_id_from_barcode(cell_barcode):
+        def closure_cell_id_from_barcode(cell_record):
             """
             To get 'Cell ID' we prefix the cell barcode with '<sample_name>_' and we remove the
             '-1' from the end.
             """
 
-            return '{}_{}'.format(sample_name, cell_barcode.rstrip('-1'))
+            return '{}_{}'.format(sample_name, cell_record[0].rstrip('-1'))
 
         return closure_cell_id_from_barcode
 
@@ -214,22 +226,33 @@ class GeneExpressionMatrixParser(object):
         """
 
         # Use scipy's function to read sparse matrix in MTX format.
-        matrix_data = scipy.io.mmread(cls.open_matrix_from_dir(path_to_mtx_dir))
+        with cls.open_matrix_from_dir(path_to_mtx_dir) as matrix_handle:
+            matrix_data = scipy.io.mmread(matrix_handle)
 
-        gene_list = GeneListParser.from_handle(
+        gene_header, gene_metadata = GeneMetadataParser.from_handle(
             cls.open_genes_from_dir(path_to_mtx_dir),
             has_header=has_header
         )
 
-        cell_list = CellIDParser.from_handle(
+        cell_header, cell_metadata = CellMetadataParser.from_handle(
             cls.open_cells_from_dir(path_to_mtx_dir),
             has_header=has_header
         )
 
-        return GeneExpression(
-            expression_matrix=matrix_data.tocsc(),
-            genes=gene_list,
-            cells=cell_list
+        return (
+            GeneExpression(
+                expression_matrix=matrix_data.tocsc(),
+                genes=gene_metadata[:,0],
+                cells=cell_metadata[:,0]
+            ),
+            Annotation(
+                headers=gene_header,
+                annotations=gene_metadata
+            ),
+            Annotation(
+                headers=cell_header,
+                annotations=cell_metadata
+            ),
         )
 
     @classmethod
@@ -258,24 +281,36 @@ class GeneExpressionMatrixParser(object):
         # Use scipy's function to read sparse matrix in MTX format.
         matrix_data = scipy.io.mmread(cls.open_matrix_from_dir(path_to_mtx_dir))
 
-        gene_list = GeneListParser.from_handle(
+        gene_header, gene_metadata = GeneMetadataParser.from_handle(
             cls.open_genes_from_dir(path_to_mtx_dir),
             has_header=has_header
         )
 
-        barcode_list = CellIDParser.from_handle(
+        barcode_header, barcode_metadata = CellMetadataParser.from_handle(
             cls.open_barcodes_from_dir(path_to_mtx_dir),
             has_header=has_header,
             fn_transform=closure_transform_barcode
         )
 
-        return GeneExpression(
-            expression_matrix=matrix_data.tocsc(),
-            genes=gene_list,
-            cells=barcode_list
+        return (
+            GeneExpression(
+                expression_matrix=matrix_data.tocsc(),
+                genes=gene_metadata[:,0],
+                cells=barcode_metadata[:,0]
+            ),
+            Annotation(
+                headers=gene_header,
+                annotations=gene_metadata
+            ),
+            Annotation(
+                headers=barcode_header,
+                annotations=barcode_metadata
+            ),
         )
 
-
+# ------------------------------
+# TODO: this is not even close to finished. Putting off until necessary
+'''
 class HCAMetadataParser(object):
 
     __slots__ = ()
@@ -321,3 +356,4 @@ class HCAMetadataParser(object):
         # return gene list as a numpy array of strings
         # return metadata_columns, numpy.array(metadata, dtype=str)
         return bundle_uuid, proj_name
+'''

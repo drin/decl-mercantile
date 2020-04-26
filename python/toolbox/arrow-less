@@ -22,7 +22,7 @@ parsed_args, parsed_extra_args = (
 # ------------------------------
 if __name__ == '__main__':
     if os.path.isfile(parsed_args.input_file):
-        data_table = SkyhookFileReader.read_arrow_table_from_arrow_binary(parsed_args.input_file)
+        data_table = SkyhookFileReader.read_data_file_as_arrow_table(parsed_args.input_file)
 
         print(data_table.schema)
         print(data_table.to_pandas())

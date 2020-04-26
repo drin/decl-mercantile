@@ -8,7 +8,7 @@ import pyarrow
 
 from skyhookdm_singlecell.util import ArgparseBuilder
 from skyhookdm_singlecell.skyhook import FormatTypes
-from skyhookdm_singlecell.dataformats import SkyhookFlatbufferMeta
+from skyhookdm_singlecell.dataformats import SkyhookFileReader
 
 # ------------------------------
 # Parse command-line arguments first
@@ -28,51 +28,22 @@ logger.setLevel(logging.INFO)
 
 # ------------------------------
 if __name__ == '__main__':
-    if os.path.isfile(parsed_args.input_file):
-        with open(parsed_args.input_file, 'rb') as input_handle:
-            binary_data = bytes(input_handle.read())
+    if not os.path.isfile(parsed_args.input_file):
+        sys.exit(f'Could not find file: {parsed_args.input_file}')
 
-            logger.info('Parsing binary data into Tables.FB_Meta')
-            skyhook_flatbuffer = SkyhookFlatbufferMeta.from_binary_flatbuffer(binary_data)
+    skyhook_flatbuffer = SkyhookFileReader.read_data_file_as_flatbuffer(binary_data)
 
-        print(
-            f'''
-            Blob Format: {skyhook_flatbuffer.fb_obj.BlobFormat()}
-            Blob Data Len: {skyhook_flatbuffer.fb_obj.BlobDataLength()}
-            Blob Original Offset: {skyhook_flatbuffer.fb_obj.BlobOrigOff()}
-            Blob Original Len: {skyhook_flatbuffer.fb_obj.BlobOrigLen()}
-            Blob Compression: {skyhook_flatbuffer.fb_obj.BlobCompression()}
-            '''
-        )
+    data_table = None
+    if skyhook_flatbuffer.get_data_format() == FormatTypes.SFT_ARROW:
+        data_table = skyhook_flatbuffer.get_data_as_arrow()
 
-        data_table = None
-        if skyhook_flatbuffer.get_data_format() == FormatTypes.SFT_FLATBUF_FLEX_ROW:
-            print('Flatbuffer Flex Row Format')
+    else:
+        readable_format = FormatTypes.from_value(skyhook_flatbuffer.get_data_format())
+        err_msg         = f'Data format, "{readable_format}" not yet supported'
 
-        elif skyhook_flatbuffer.get_data_format() == FormatTypes.SFT_ARROW:
-            print('ARROW format')
+        print(err_msg)
+        sys.exit(err_msg)
 
-            print(f'Reading {skyhook_flatbuffer.get_size()} bytes')
-
-            data_table = skyhook_flatbuffer.get_data_as_arrow()
-            print(f'Table shape: {data_table.shape}')
-
-        elif skyhook_flatbuffer.get_data_format() == FormatTypes.SFT_JSON:
-            print('JSON format')
-
-        elif skyhook_flatbuffer.get_data_format() == FormatTypes.SFT_CSV:
-            print('CSV format')
-
-        elif skyhook_flatbuffer.get_data_format() is None:
-            print('Data format not defined')
-
-        if data_table is None:
-            data_format = FormatTypes.from_value(skyhook_flatbuffer.get_data_format())
-            err_msg = f'Unable to process data format ({data_format}) in {parsed_args.input_file}'
-
-            print(err_msg)
-            sys.exit(err_msg)
-
-        print(data_table.schema)
-        print(data_table.to_pandas())
-        print(len(data_table.schema.metadata['data_schema'.encode('utf-8')]))
+    print(data_table.schema)
+    print(data_table.to_pandas())
+    print(len(data_table.schema.metadata['data_schema'.encode('utf-8')]))
