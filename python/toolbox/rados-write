@@ -80,6 +80,10 @@ if __name__ == '__main__':
         paths_to_input_files = [
             os.path.join(parsed_args.input_dir, data_partition_file)
             for data_partition_file in os.listdir(parsed_args.input_dir)
+            if not (
+                   data_partition_file.endswith('cellkey.arrow')
+                or data_partition_file.endswith('featurekey.arrow')
+            )
         ]
 
     # ------------------------------
@@ -100,10 +104,10 @@ if __name__ == '__main__':
         binary_data = None
 
         if parsed_args.data_format == 'arrow' and path_to_input_file.endswith('.arrow'):
-            binary_data = SkyhookFileReader.read_gene_expr_to_arrow_binary(path_to_input_file)
+            binary_data = SkyhookFileReader.read_data_file_as_binary(path_to_input_file)
 
             if parsed_args.flag_use_wrapper:
-                binary_data = SkyhookFlatbufferMeta.binary_from_arrow_table(binary_data)
+                binary_data = SkyhookFlatbufferMeta.binary_from_arrow_binary(binary_data)
 
         elif parsed_args.data_format != 'arrow':
             sys.exit('Currently only "arrow" data format is supported')
@@ -123,16 +127,21 @@ if __name__ == '__main__':
     path_to_gene_metadata = os.path.join(parsed_args.input_dir, '00001-featurekey.arrow')
 
     with cluster.context_for_pool(parsed_args.ceph_pool) as pool_context:
-        cell_metadata   = SkyhookFileReader.read_gene_expr_to_arrow_binary(path_to_cell_metadata)
-        binary_data_len = len(binary_data).to_bytes(4, byteorder='little')
+        cell_metadata = SkyhookFileReader.read_data_file_as_binary(path_to_cell_metadata)
+        gene_metadata = SkyhookFileReader.read_data_file_as_binary(path_to_gene_metadata)
+
+        if parsed_args.flag_use_wrapper:
+            cell_metadata_binary = SkyhookFlatbufferMeta.binary_from_arrow_binary(cell_metadata)
+            gene_metadata_binary = SkyhookFlatbufferMeta.binary_from_arrow_binary(gene_metadata)
+
+        binary_data_len = len(cell_metadata_binary).to_bytes(4, byteorder='little')
         pool_context.write_data(
             storage_obj_name=f'public.{parsed_args.skyhook_table}.cells',
-            storage_obj_data=(binary_data_len + cell_metadata)
+            storage_obj_data=(binary_data_len + cell_metadata_binary)
         )
 
-        gene_metadata   = SkyhookFileReader.read_gene_expr_to_arrow_binary(path_to_gene_metadata)
-        binary_data_len = len(binary_data).to_bytes(4, byteorder='little')
+        binary_data_len = len(gene_metadata_binary).to_bytes(4, byteorder='little')
         pool_context.write_data(
             storage_obj_name=f'public.{parsed_args.skyhook_table}.genes',
-            storage_obj_data=(binary_data_len + gene_metadata)
+            storage_obj_data=(binary_data_len + gene_metadata_binary)
         )
