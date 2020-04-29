@@ -230,7 +230,7 @@ class SkyhookFlatbufferMeta(object):
         return cls(FB_Meta.FB_Meta.GetRootAsFB_Meta(flatbuffer_binary, offset))
 
     @classmethod
-    def binary_from_arrow_table(cls, binary_arrow_table):
+    def binary_from_arrow_binary(cls, binary_arrow_table):
         # initialize a flatbuffer builder with a count of expected contiguous bytes needed,
         # accommodating each fixed-size field of the FB_Meta flatbuffer
         partial_byte_count = (4 + 8 + 4 + 8 + 8 + 4)
@@ -316,7 +316,6 @@ class SkyhookFileReader(object):
     @classmethod
     def read_data_file_as_flatbuffer(cls, path_to_infile):
         cls.logger.info('>>> reading binary data file into a flatbuffer')
-
         with open(path_to_infile, 'rb') as input_handle:
             binary_data = input_handle.read()
 
@@ -326,14 +325,23 @@ class SkyhookFileReader(object):
         return flatbuffer_obj
 
     @classmethod
+    def read_skyhook_file(cls, path_to_infile):
+        cls.logger.info('>>> reading skyhook file into a flatbuffer')
+        with open(path_to_infile, 'rb') as input_handle:
+            binary_data = input_handle.read()
+
+        flatbuffer_obj = SkyhookFlatbufferMeta.from_binary_flatbuffer(binary_data[4:])
+        cls.logger.info('<<< data read into arrow table')
+
+        return int.from_bytes(binary_data[:4], byteorder='little'), flatbuffer_obj
+
+    @classmethod
     def read_data_file_as_binary(cls, path_to_infile):
         cls.logger.info('>>> reading binary data file')
-
         with open(path_to_infile, 'rb') as input_handle:
             binary_data = input_handle.read()
 
         cls.logger.info('<<< data read as binary')
-
         return binary_data
 
 
@@ -383,7 +391,7 @@ class SkyhookFileWriter(object):
             )
 
             # Serialize flatbuffer structure to disk
-            fb_meta_wrapped_binary = SkyhookFlatbufferMeta.binary_from_arrow_table(
+            fb_meta_wrapped_binary = SkyhookFlatbufferMeta.binary_from_arrow_binary(
                 arrow_binary_from_table(tbl_part)
             )
             with open(path_to_blob, 'wb') as blob_handle:
