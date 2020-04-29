@@ -31,7 +31,9 @@ if __name__ == '__main__':
     if not os.path.isfile(parsed_args.input_file):
         sys.exit(f'Could not find file: {parsed_args.input_file}')
 
-    skyhook_flatbuffer = SkyhookFileReader.read_data_file_as_flatbuffer(binary_data)
+    data_size, skyhook_flatbuffer = SkyhookFileReader.read_skyhook_file(parsed_args.input_file)
+
+    print(f'Data Size: {data_size}')
 
     data_table = None
     if skyhook_flatbuffer.get_data_format() == FormatTypes.SFT_ARROW:
