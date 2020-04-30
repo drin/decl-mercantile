@@ -65,7 +65,7 @@ class SkyhookDataWrapper(object):
     logger = logging.getLogger('{}.{}'.format(__module__, __name__))
     logger.setLevel(logging.INFO)
 
-    def __init__(self, table_name, domain_dataset, dataset_columns,
+    def __init__(self, table_name, domain_dataset, dataset_columns, db_schema='public',
                  type_for_numpy=numpy.uint16, type_for_arrow=pyarrow.uint16(),
                  type_for_skyhook=skyhook.DataTypes.SDT_UINT16, **kwargs):
 
@@ -82,7 +82,7 @@ class SkyhookDataWrapper(object):
 
         # Skyhook metadata
         self.skyhook_schema = None
-        self.db_schema      = ''
+        self.db_schema      = db_schema
         self.table_name     = table_name
 
     def table_schema(self, from_col_ndx=None, to_col_ndx=None):
@@ -109,13 +109,13 @@ class SkyhookDataWrapper(object):
             for column_ndx, column_name in col_iterator
         ]
 
-    def schema_skyhook_metadata(self, from_col_ndx=0, to_col_ndx=None):
+    def schema_skyhook_metadata(self, from_col_ndx=0, to_col_ndx=None, col_delim=';'):
         """
         Return formatted Skyhook metadata that will be stored with the arrow schema information.
         """
 
         # data schema is '\n' or ';' delimited information for each column
-        data_schema_as_str = '\n'.join(map(
+        data_schema_as_str = col_delim.join(map(
             str,
             self.skyhook_data_schema(from_col_ndx, to_col_ndx)
         ))
