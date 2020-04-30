@@ -13,7 +13,7 @@ from skyhookdm_singlecell.dataformats import SkyhookFileReader
 # ------------------------------
 # Parse command-line arguments first
 parsed_args, parsed_extra_args = (
-    ArgparseBuilder.with_description('Program for inspecting data in serialized arrow files')
+    ArgparseBuilder.with_description('Utility to parse binary skyhook files (flatbuffer)')
                    .add_input_file_arg(
                          required=True
                         ,help_str='Path to arrow file (assumed to be gene expression)'
