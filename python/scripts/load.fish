@@ -1,6 +1,6 @@
 #!/usr/bin/fish
 
-for workload_dir in (find /mnt/sdb/data/workload/simulated -mindepth 1 -maxdepth 1 -type d)
+for workload_dir in (find /mnt/sdb/data/simulated -mindepth 1 -maxdepth 1 -type d)
     set num_files (ls -1 $workload_dir | wc -l)
     set table_name (basename $workload_dir)
 
