@@ -185,6 +185,38 @@ class ArgparseBuilder(object):
 
         return self
 
+    def add_skyhook_query_bin_args(self, required=False, help_str=''):
+        self._arg_parser.add_argument(
+             '--query-bin'
+            ,dest='path_to_query_bin'
+            ,type=str
+            ,default='/mnt/sdb/skyhookdm-ceph/build/bin/run-query'
+            ,required=required
+            ,help=(help_str or "Path to skyhook's run-query binary")
+        )
+
+        return self
+
+    def add_skyhook_obj_slice_args(self, required=False, help_str=''):
+        self._arg_parser.add_argument(
+             '--start-obj'
+            ,dest='start_obj'
+            ,type=str
+            ,default='0'
+            ,required=False
+            ,help=(help_str or 'First partition to do object scan from')
+        )
+
+        self._arg_parser.add_argument(
+             '--num-objs'
+            ,dest='num_objs'
+            ,type=str
+            ,required=required
+            ,help=(help_str or 'Number of objects (including start) to scan')
+        )
+
+        return self
+
     def add_flatbuffer_flag_arg(self, required=False, help_str=''):
         self._arg_parser.add_argument(
              '--use-skyhook-wrapper'
