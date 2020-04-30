@@ -2,31 +2,79 @@
 
 import os
 import sys
+import subprocess
 import logging
 
 import pyarrow
 
+from skyhookdm_singlecell import skyhook
 from skyhookdm_singlecell.util import ArgparseBuilder
-from skyhookdm_singlecell.skyhook import FormatTypes
-from skyhookdm_singlecell.dataformats import SkyhookFileReader
+from skyhookdm_singlecell.dataformats import SkyhookFlatbufferMeta, arrow_table_from_binary
+
 
 # ------------------------------
 # Parse command-line arguments first
 parsed_args, parsed_extra_args = (
-    ArgparseBuilder.with_description('Program for inspecting data in serialized arrow files')
-                   .add_input_file_arg(
-                         required=True
-                        ,help_str='Path to arrow file (assumed to be gene expression)'
+    ArgparseBuilder.with_description("Thin wrapper around SkyhookDM's run-query binary")
+                   .add_skyhook_query_bin_args(required=False)
+                   .add_skyhook_obj_slice_args(required=True)
+                   .add_ceph_pool_arg(required=True)
+                   .add_skyhook_table_arg(required=True)
+                   .add_metadata_target_arg(
+                         required=False
+                        ,help_str='Metadata to query *instead of* table data: <cells | genes>'
                     )
                    .parse_args()
 )
+
 
 # Bootstrap logger
 logger = logging.getLogger('toolbox.run-query')
 logger.addHandler(logging.StreamHandler(sys.stdout))
 logger.setLevel(logging.INFO)
 
+def construct_query_str():
+    """
+    Convenience function to construct the run-query command string. This assumes access to
+    global-scope CLI arguments.
+    """
+
+    command_args = [
+        parsed_args.path_to_query_bin,
+
+        '--start-obj'    , parsed_args.start_obj             ,
+        '--num-objs'     , parsed_args.num_objs              ,
+        '--oid-prefix'   , 'public'                          ,
+        '--pool'         , parsed_args.ceph_pool             ,
+        '--table-name'   , parsed_args.skyhook_table         ,
+        '--result-format', str(skyhook.FormatTypes.SFT_ARROW),
+        '--output-format', 'SFT_PYARROW_BINARY'              ,
+
+        #'--quiet'
+    ]
+
+    metadata_opt = []
+    if parsed_args.metadata_target == 'cells':   metadata_opt = ['--cell-metadata']
+    elif parsed_args.metadata_target == 'genes': metadata_opt = ['--gene-metadata']
+
+    return command_args + metadata_opt
+
+def exec_run_query(query_command_args):
+    """
+    Convenience function to call the run-query binary and handle output.
+    """
+
+    print(f'Executing command: "{query_command_args}"')
+
+    cmd_completion = subprocess.run(query_command_args, check=True, stdout=subprocess.PIPE)
+
+    print(f'leading bytes: {cmd_completion.stdout[:16]}')
+
+    flatbuffer_table = SkyhookFlatbufferMeta.from_binary_flatbuffer(cmd_completion.stdout)
+    result_table     = flatbuffer_table.get_data_as_arrow()
+    print(result_table.schema)
+    print(result_table.to_pandas())
+
 # ------------------------------
 if __name__ == '__main__':
-    if not os.path.isfile(parsed_args.input_file):
-        pass
+    exec_run_query(construct_query_str())
