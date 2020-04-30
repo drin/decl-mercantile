@@ -52,7 +52,7 @@ RUN    git clone --branch "cloudlab" $CONFIGS_GIT_URL $PATH_TO_CONFIGS   \
 
 ARG CODE_GIT_URL="https://github.com/drin/decl-mercantile.git"
 ARG PATH_TO_CODE="/code/decl-mercantile"
-RUN git clone --branch "cloudlab" $CODE_GIT_URL $PATH_TO_CODE
+RUN git clone --branch "develop" $CODE_GIT_URL $PATH_TO_CODE
 
 COPY entrypoint.sh /
 
