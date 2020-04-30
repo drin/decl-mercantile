@@ -11,7 +11,7 @@ from skyhookdm_singlecell.dataformats import SkyhookFileReader, SkyhookFlatbuffe
 # ------------------------------
 # Parse command-line arguments first
 argparser = (
-    ArgparseBuilder.with_description('Program for inspecting data in serialized arrow files')
+    ArgparseBuilder.with_description('Utility to write data from single-cell arrow files into Ceph')
                    .add_config_file_arg(
                          required=True
                         ,help_str='Path to Ceph config file (default: $HOME/cluster/ceph.conf)'
