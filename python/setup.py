@@ -11,7 +11,7 @@ install_requires = [
     'h5py            >= 2.10    , <    3.0',
     'numpy           >= 1.17    , <    2.0',
     'pandas          >= 1.0.1   , <  2.0.0',
-    'pyarrow         >= 0.15.0  , < 0.16.0',
+    'pyarrow         >= 0.17.0  , < 0.18.0',
     'python-cephlibs >= 0.94.5  , < 0.95.0',
     'scipy           >= 1.3     , <    2.0',
 ]
