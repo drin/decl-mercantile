@@ -197,6 +197,17 @@ class ArgparseBuilder(object):
 
         return self
 
+    def add_query_arg(self, required=False, help_str=''):
+        self._arg_parser.add_argument(
+             '--query-str'
+            ,dest='query_str'
+            ,type=str
+            ,required=required
+            ,help=(help_str or 'Structured query expression')
+        )
+
+        return self
+
     def add_skyhook_obj_slice_args(self, required=False, help_str=''):
         self._arg_parser.add_argument(
              '--start-obj'
@@ -211,6 +222,7 @@ class ArgparseBuilder(object):
              '--num-objs'
             ,dest='num_objs'
             ,type=str
+            ,default='1000'
             ,required=required
             ,help=(help_str or 'Number of objects (including start) to scan')
         )
