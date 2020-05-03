@@ -42,21 +42,22 @@ def arrow_binary_from_table(arrow_table):
 
     stream_writer.close()
 
-    # TODO: see if to_pybytes() is necessary
-    # return arrow_buffer.getvalue().to_pybytes()
-
     return arrow_buffer.getvalue()
 
 
-def arrow_table_from_binary(data_blob):
+def arrow_batches_from_binary(data_blob):
     stream_reader = pyarrow.ipc.open_stream(data_blob)
 
-    deserialized_batches = [
-        deserialized_batch
-        for deserialized_batch in stream_reader
-    ]
+    return (
+        stream_reader.schema,
+        [deserialized_batch for deserialized_batch in stream_reader]
+    )
 
-    return pyarrow.Table.from_batches(deserialized_batches, schema=stream_reader.schema)
+
+def arrow_table_from_binary(data_blob):
+    blob_schema, blob_batches = arrow_batches_from_binary(data_blob)
+
+    return pyarrow.Table.from_batches(blob_batches, schema=blob_schema)
 
 
 # ------------------------------
