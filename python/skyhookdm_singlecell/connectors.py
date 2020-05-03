@@ -12,6 +12,9 @@ import logging
 # functions
 from skyhookdm_singlecell.util import try_import
 
+# TODO: this is temporary to see if the ubuntu package supports a decent version of librados
+sys.path.insert(0, '/usr/lib/python3/dist-packages')
+
 # optional, dynamic module imports
 rados = try_import('rados')
 
@@ -34,7 +37,11 @@ class RadosIOContext(object):
 
     def write_data(self, storage_obj_name, storage_obj_data):
         self.io_context.aio_write_full(storage_obj_name, storage_obj_data)
-        self.io_context.set_xattr(storage_obj_name, 'size', str(len(storage_obj_data)))
+        self.io_context.set_xattr(
+            storage_obj_name,
+            'size',
+            str(len(storage_obj_data)).encode('utf-8')
+        )
 
 
 class RadosConnector(object):
