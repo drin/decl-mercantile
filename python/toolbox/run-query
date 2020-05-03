@@ -4,12 +4,13 @@ import os
 import sys
 import subprocess
 import logging
+import itertools
 
 import pyarrow
 
 from skyhookdm_singlecell import skyhook
 from skyhookdm_singlecell.util import ArgparseBuilder
-from skyhookdm_singlecell.dataformats import SkyhookFlatbufferMeta, arrow_table_from_binary
+from skyhookdm_singlecell.dataformats import SkyhookFlatbufferMeta, arrow_batches_from_binary
 
 
 # ------------------------------
@@ -68,12 +69,60 @@ def exec_run_query(query_command_args):
 
     cmd_completion = subprocess.run(query_command_args, check=True, stdout=subprocess.PIPE)
 
-    print(f'leading bytes: {cmd_completion.stdout[:16]}')
+    byte_ndx_blob   = 0
+    binary_response = cmd_completion.stdout
 
-    flatbuffer_table = SkyhookFlatbufferMeta.from_binary_flatbuffer(cmd_completion.stdout)
-    result_table     = flatbuffer_table.get_data_as_arrow()
+    with open('test.binary', 'wb') as output_handle:
+        output_handle.write(binary_response)
+
+    schema_cumulative  = None
+    batches_cumulative = None
+
+    # iterate over each partition in the output
+    iter_ndx = 0
+    while byte_ndx_blob < len(binary_response):
+        # first, peel the blob size
+        byte_ndx_size = byte_ndx_blob + 8
+        data_size = int.from_bytes(
+            binary_response[byte_ndx_blob:byte_ndx_size],
+            byteorder='little'
+        )
+
+        # then, parse the binary into arrow record batches and a schema
+        byte_ndx_blob_end = byte_ndx_size + data_size
+
+        partition_schema, partition_batches = arrow_batches_from_binary(
+            binary_response[byte_ndx_size:byte_ndx_blob_end]
+        )
+
+        # set our initial accumulators
+        if batches_cumulative is None:
+            batches_cumulative = partition_batches
+            schema_cumulative  = partition_schema
+
+        # otherwise, accumulate
+        else:
+            batches_cumulative.extend(partition_batches)
+
+            # TODO there is probably a more efficient way to do this?
+            for partition_field in partition_schema:
+                schema_cumulative = schema_cumulative.append(partition_field)
+
+        # move our index in the output forward
+        byte_ndx_blob = byte_ndx_blob_end
+        iter_ndx     += 1
+
+    # construct the overall arrow table
+    result_table = pyarrow.Table.from_arrays(
+        list(itertools.chain.from_iterable([
+            partition_batch.columns
+            for partition_batch in batches_cumulative
+        ])),
+        schema=schema_cumulative
+    )
     print(result_table.schema)
     print(result_table.to_pandas())
+
 
 # ------------------------------
 if __name__ == '__main__':
