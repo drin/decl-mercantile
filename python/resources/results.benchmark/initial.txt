@@ -1,0 +1,136 @@
+12:35 
+
+query:
+    SELECT *
+    FROM    1_1_2_2_3_4
+           ,1_1_2_1_2_3
+           ,1_2_2_3_1_3
+           ,1_2_2_1_3_3
+           ,1_2_1_2_1_4
+           ,1_1_1_1_3_5
+           ,1_1_1_1_3_2
+           ,1_1_1_1_4_3
+           ,1_1_2_2_3_3
+           ,1_2_2_2_1_2
+
+Input:
+    toolbox/query-benchmark --pool simulated    \
+                            --num-objs 50       \
+                            --query-str <query>
+
+Output:
+    Executing command: "[
+        '/mnt/sdb/skyhookdm-ceph/build/bin/run-query',
+        '--start-obj'    , '0',
+        '--num-objs'     , '50',
+        '--oid-prefix'   , 'public',
+        '--pool'         , 'simulated',
+        '--table-name'   , '1_1_2_2_3_4',
+        '--result-format', '5',
+        '--output-format', 'SFT_PYARROW_BINARY'
+    ]"
+
+    Executing command: "[
+        '/mnt/sdb/skyhookdm-ceph/build/bin/run-query',
+        '--start-obj'    , '0',
+        '--num-objs'     , '50',
+        '--oid-prefix'   , 'public',
+        '--pool'         , 'simulated',
+        '--table-name'   , '1_1_2_1_2_3',
+        '--result-format', '5',
+        '--output-format', 'SFT_PYARROW_BINARY'
+    ]"
+
+    Executing command: "[
+        '/mnt/sdb/skyhookdm-ceph/build/bin/run-query',
+        '--start-obj'    , '0',
+        '--num-objs'     , '50',
+        '--oid-prefix'   , 'public',
+        '--pool'         , 'simulated',
+        '--table-name'   , '1_2_2_3_1_3',
+        '--result-format', '5',
+        '--output-format', 'SFT_PYARROW_BINARY'
+    ]"
+
+    Executing command: "[
+        '/mnt/sdb/skyhookdm-ceph/build/bin/run-query',
+        '--start-obj'    , '0',
+        '--num-objs'     , '50',
+        '--oid-prefix'   , 'public',
+        '--pool'         , 'simulated',
+        '--table-name'   , '1_2_2_1_3_3',
+        '--result-format', '5',
+        '--output-format', 'SFT_PYARROW_BINARY'
+    ]"
+
+    Executing command: "[
+        '/mnt/sdb/skyhookdm-ceph/build/bin/run-query',
+        '--start-obj'    , '0',
+        '--num-objs'     , '50',
+        '--oid-prefix'   , 'public',
+        '--pool'         , 'simulated',
+        '--table-name'   , '1_2_1_2_1_4',
+        '--result-format', '5',
+        '--output-format', 'SFT_PYARROW_BINARY'
+    ]"
+
+    Executing command: "[
+        '/mnt/sdb/skyhookdm-ceph/build/bin/run-query',
+        '--start-obj'    , '0',
+        '--num-objs'     , '50',
+        '--oid-prefix'   , 'public',
+        '--pool'         , 'simulated',
+        '--table-name'   , '1_1_1_1_3_5',
+        '--result-format', '5',
+        '--output-format', 'SFT_PYARROW_BINARY'
+    ]"
+
+    Executing command: "[
+        '/mnt/sdb/skyhookdm-ceph/build/bin/run-query',
+        '--start-obj'    , '0',
+        '--num-objs'     , '50',
+        '--oid-prefix'   , 'public',
+        '--pool'         , 'simulated',
+        '--table-name'   , '1_1_1_1_3_2',
+        '--result-format', '5',
+        '--output-format', 'SFT_PYARROW_BINARY'
+    ]"
+
+    Executing command: "[
+        '/mnt/sdb/skyhookdm-ceph/build/bin/run-query',
+        '--start-obj'    , '0',
+        '--num-objs'     , '50',
+        '--oid-prefix'   , 'public',
+        '--pool'         , 'simulated',
+        '--table-name'   , '1_1_1_1_4_3',
+        '--result-format', '5',
+        '--output-format', 'SFT_PYARROW_BINARY'
+    ]"
+
+    Executing command: "[
+        '/mnt/sdb/skyhookdm-ceph/build/bin/run-query',
+        '--start-obj'    , '0',
+        '--num-objs'     , '50',
+        '--oid-prefix'   , 'public',
+        '--pool'         , 'simulated',
+        '--table-name'   , '1_1_2_2_3_3',
+        '--result-format', '5',
+        '--output-format', 'SFT_PYARROW_BINARY'
+    ]"
+
+    Executing command: "[
+        '/mnt/sdb/skyhookdm-ceph/build/bin/run-query',
+        '--start-obj'    , '0',
+        '--num-objs'     , '50',
+        '--oid-prefix'   , 'public',
+        '--pool'         , 'simulated',
+        '--table-name'   , '1_2_2_2_1_2',
+        '--result-format', '5',
+        '--output-format', 'SFT_PYARROW_BINARY'
+    ]"
+
+
+    Query  time: 18.514325618743896
+    Arrow  conversion time: 29.275289297103882
+    Pandas conversion time: 1.0112390518188477
+    Total  time: 48.800853967666626
