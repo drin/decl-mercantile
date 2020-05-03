@@ -1,0 +1,194 @@
+#!/usr/bin/env python
+
+import os
+import sys
+import subprocess
+import time
+
+import logging
+import itertools
+
+import pyarrow
+
+from skyhookdm_singlecell import skyhook
+from skyhookdm_singlecell.util import ArgparseBuilder
+from skyhookdm_singlecell.parsers import QueryParser
+from skyhookdm_singlecell.dataformats import SkyhookFlatbufferMeta, arrow_batches_from_binary
+
+
+# ------------------------------
+# Parse command-line arguments first
+parsed_args, parsed_extra_args = (
+    ArgparseBuilder.with_description("Thin wrapper around SkyhookDM's run-query binary")
+                   .add_skyhook_query_bin_args(required=False)
+                   .add_skyhook_obj_slice_args(required=False)
+                   .add_ceph_pool_arg(required=True)
+                   .add_skyhook_table_arg(required=False)
+                   .add_metadata_target_arg(
+                         required=False
+                        ,help_str='Metadata to query *instead of* table data: <cells | genes>'
+                    )
+                   .add_query_arg(required=False)
+                   .parse_args()
+)
+
+
+# Bootstrap logger
+logger = logging.getLogger('toolbox.run-query')
+logger.addHandler(logging.StreamHandler(sys.stdout))
+logger.setLevel(logging.INFO)
+
+def construct_query_sequence():
+    """
+    Convenience function to construct the run-query command string from command-line arguments and
+    execute the skyhook run-query binary with these arguments.
+
+    This is a generator and yields, for each table (relation), the skyhook results as a sequence of
+    binary size (8 bytes) and binary data (arrow format).
+    """
+
+    # parse query string if provided
+    query_components = None
+    if parsed_args.query_str is not None:
+        query_components = QueryParser.parse(parsed_args.query_str)
+
+    # variables for coalescing query string into other arguments
+    projection_attrs  = []
+    project_cell_meta = False
+    project_gene_meta = False
+
+    # process attributes specified in select clause
+    if query_components.get('projection'):
+        for project_attr in query_components.get('projection'):
+            if project_attr not in ('cell-metadata', 'gene-metadata'):
+                projection_attrs.append(project_attr)
+
+            elif project_attr == 'cell-metadata':
+                project_cell_meta = True
+
+            elif project_attr == 'gene-metadata':
+                project_gene_meta = True
+
+    # process attributes specified in from clause
+    if parsed_args.skyhook_table:
+        relation_list = [parsed_args.skyhook_table]
+
+    elif query_components.get('relations'):
+        relation_list = query_components.get('relations')
+
+    # yield a sequence of argument lists, where each argument list is for a query
+    for relation in relation_list:
+        # construct query args from command-line args
+        command_args = [
+            parsed_args.path_to_query_bin,
+
+            '--start-obj'    , parsed_args.start_obj             ,
+            '--num-objs'     , parsed_args.num_objs              ,
+            '--oid-prefix'   , 'public'                          ,
+            '--pool'         , parsed_args.ceph_pool             ,
+            '--table-name'   , relation                          ,
+            '--result-format', str(skyhook.FormatTypes.SFT_ARROW),
+            '--output-format', 'SFT_PYARROW_BINARY'              ,
+        ]
+
+        # add arguments that may have been specified
+        if projection_attrs:
+            command_args += ['--project', ','.join(projection_attrs)]
+
+        if parsed_args.metadata_target == 'cells' or project_cell_meta:
+            command_args += ['--cell-metadata']
+
+        elif parsed_args.metadata_target == 'genes' or project_gene_meta:
+            command_args += ['--gene-metadata']
+
+        yield command_args
+
+
+def execute_query(query_args):
+    # execute run-query binary and return binary response
+    # print(f'Executing command: "{query_args}"')
+
+    cmd_completion = subprocess.run(query_args, check=True, stdout=subprocess.PIPE)
+    return cmd_completion.stdout
+
+
+def arrow_table_from_query_response(binary_response, size_width=8):
+    """
+    Convenience function to call the run-query binary and handle output.
+    """
+
+    byte_ndx_blob      = 0
+    schema_cumulative  = None
+    batches_cumulative = None
+
+    # iterate over each partition in the output
+    while byte_ndx_blob < len(binary_response):
+        # first, peel the blob size
+        byte_ndx_size = byte_ndx_blob + size_width
+        data_size     = int.from_bytes(
+            binary_response[byte_ndx_blob:byte_ndx_size],
+            byteorder='little'
+        )
+
+        # then, parse the binary into arrow record batches and a schema
+        byte_ndx_blob_end                   = byte_ndx_size + data_size
+        partition_schema, partition_batches = arrow_batches_from_binary(
+            binary_response[byte_ndx_size:byte_ndx_blob_end]
+        )
+
+        # set our initial accumulators
+        if batches_cumulative is None:
+            batches_cumulative = partition_batches
+            schema_cumulative  = partition_schema
+
+        # otherwise, accumulate
+        else:
+            batches_cumulative.extend(partition_batches)
+
+            for partition_field in partition_schema:
+                schema_cumulative = schema_cumulative.append(partition_field)
+
+        # move our index in the output forward (aka look at next partition)
+        byte_ndx_blob = byte_ndx_blob_end
+
+    # return the overall, coalesced arrow table
+    return pyarrow.Table.from_arrays(
+        list(itertools.chain.from_iterable([
+            partition_batch.columns
+            for partition_batch in batches_cumulative
+        ])),
+        schema=schema_cumulative
+    )
+
+
+# ------------------------------
+if __name__ == '__main__':
+    query_sequence = construct_query_sequence()
+
+    query_time, arrow_time, pandas_time = 0, 0, 0
+    count_bytes_received = 0
+
+    for query_args in query_sequence:
+        query_start    = time.time()
+        query_response = execute_query(query_args)
+        query_end      = time.time()
+
+        count_bytes_received += len(query_response)
+
+        arrow_start  = time.time()
+        result_table = arrow_table_from_query_response(query_response)
+        arrow_end    = time.time()
+
+        pandas_start = time.time()
+        result_table.to_pandas()
+        pandas_end   = time.time()
+
+        query_time  += query_end  - query_start
+        arrow_time  += arrow_end  - arrow_start
+        pandas_time += pandas_end - pandas_start
+
+    print(f'\tQuery  time (seconds): {query_time:.04f}')
+    print(f'\tArrow  conversion time (seconds): {arrow_time:.04f}')
+    print(f'\tPandas conversion time (seconds): {pandas_time:.04f}')
+    print(f'\tTotal  time (seconds): {query_time + arrow_time + pandas_time:.04f}')
+    print(f'\tTotal data received (bytes): {count_bytes_received}')
