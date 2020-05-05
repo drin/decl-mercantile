@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import os
 import sys
 import subprocess
 import time
@@ -13,7 +12,7 @@ import pyarrow
 from skyhookdm_singlecell import skyhook
 from skyhookdm_singlecell.util import ArgparseBuilder
 from skyhookdm_singlecell.parsers import QueryParser
-from skyhookdm_singlecell.dataformats import SkyhookFlatbufferMeta, arrow_batches_from_binary
+from skyhookdm_singlecell.dataformats import arrow_batches_from_binary
 
 
 # ------------------------------
@@ -37,6 +36,7 @@ parsed_args, parsed_extra_args = (
 logger = logging.getLogger('toolbox.run-query')
 logger.addHandler(logging.StreamHandler(sys.stdout))
 logger.setLevel(logging.INFO)
+
 
 def construct_query_sequence():
     """
