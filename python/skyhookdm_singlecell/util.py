@@ -12,6 +12,8 @@ module_logger.addHandler(logging.StreamHandler(sys.stdout))
 module_logger.setLevel(logging.DEBUG)
 
 
+# ------------------------------
+# convenience functions
 def normalize_str(str_or_bytes, byte_encoding='utf-8'):
     if type(str_or_bytes) is bytes:
         return str_or_bytes.decode(byte_encoding)
@@ -40,6 +42,7 @@ def try_import(module_name, is_required=False, module_package=None):
 
     finally:
         return imported_module
+
 
 # ------------------------------
 # utility classes
