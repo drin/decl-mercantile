@@ -4,8 +4,6 @@ import os
 import sys
 import logging
 
-import pyarrow
-
 from skyhookdm_singlecell.util import ArgparseBuilder
 from skyhookdm_singlecell.skyhook import FormatTypes
 from skyhookdm_singlecell.dataformats import SkyhookFileReader
