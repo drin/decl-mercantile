@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 
 import os
-import sys
-
-import pyarrow
 
 from skyhookdm_singlecell.util import ArgparseBuilder
 from skyhookdm_singlecell.dataformats import SkyhookFileReader
