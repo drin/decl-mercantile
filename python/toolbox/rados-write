@@ -11,7 +11,7 @@ from skyhookdm_singlecell.dataformats import SkyhookFileReader, SkyhookFlatbuffe
 # ------------------------------
 # Parse command-line arguments first
 argparser = (
-    ArgparseBuilder.with_description('Utility to write data from single-cell arrow files into Ceph')
+    ArgparseBuilder.with_description('Writes data from single-cell arrow files into Ceph')
                    .add_config_file_arg(
                          required=True
                         ,help_str='Path to Ceph config file (default: $HOME/cluster/ceph.conf)'
@@ -47,6 +47,7 @@ def comparator_filenames(path_to_arrow_file, re_file_id_prefix=r'^(\d+)-'):
         sys.exit(f'File naming scheme unrecognized: {path_to_arrow_file}')
 
     return int(re_match_obj.group(1))
+
 
 # ------------------------------
 # Main Logic
@@ -90,7 +91,6 @@ if __name__ == '__main__':
     # Make sure files are in sorted order (temporary hack)
     if len(paths_to_input_files) > 9:
         paths_to_input_files = sorted(paths_to_input_files, key=comparator_filenames)
-
 
     # Initialize the cluster handle
     cluster = RadosConnector.connection_for_config(path_to_config=parsed_args.config_file)
