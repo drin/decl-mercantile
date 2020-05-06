@@ -6,6 +6,27 @@ import numpy
 import scipy
 
 
+def cpm_normalization(expression_data, target_sum=1e6):
+        """
+        Take the log(<count> + 1) for each matrix cell (for each barcode, for each gene) where each
+        measured gene expression (matrix cell) is normalized by the proportion of total expressed
+        genes (total count for the barcode or biological cell) to 1 million.
+
+        In short, take the log(CPM + 1).
+        """
+
+        return (
+            numpy.log1p(
+                      # normalize each count for a barcode by the total normalized count for that barcode
+                      expression_data / (
+                          # normalize total count for each barcode by a million
+                          expression_data.sum(axis=0) / target_sum
+                      )
+                  )
+                 .astype(numpy.uint16, copy=False)
+        )
+
+
 # ------------------------------
 # Classes
 class Annotation(object):
@@ -18,6 +39,42 @@ class Annotation(object):
     def __getitem__(self, col_name):
         return self.annotations[:, numpy.where(self.headers == col_name)]
 
+    @property
+    def shape(self):
+        """Shape of expression matrix."""
+        return self.annotations.shape
+
+    def astype(self, dtype):
+        self.annotations = self.annotations.astype(dtype=dtype, copy=False)
+
+        return self
+
+    def columns(self, from_col_ndx=None, to_col_ndx=None):
+        return self.headers[from_col_ndx:to_col_ndx]
+
+    def data(self, from_col=None, to_col=None, from_row=None, to_row=None):
+        return self.annotations[from_row:to_row, from_col:to_col]
+
+    def data_as_array(self, from_col=None, to_col=None, from_row=None, to_row=None):
+        is_sparse_matrix = (
+               isinstance(self.annotations, scipy.sparse.coo_matrix)
+            or isinstance(self.annotations, scipy.sparse.csc_matrix)
+        )
+
+        if (is_sparse_matrix):
+            data_array = self.annotations[from_row:to_row, from_col:to_col].toarray()
+
+            if data_array.shape[1] == 1: return data_array[:,0]
+            return data_array
+
+        elif isinstance(self.annotations, numpy.matrix):
+            return self.annotations[from_row:to_row, from_col:to_col].getA()
+
+        elif isinstance(self.annotations, numpy.ndarray):
+            return self.annotations[from_row:to_row, from_col:to_col]
+
+        sys.exit(f'Not sure how to convert {type(self.annotations)} to {type(numpy.ndarray)}')
+
 
 class GeneExpression(object):
 
@@ -25,9 +82,60 @@ class GeneExpression(object):
         super().__init__(**kwargs)
 
         # Core data
-        self.expression = expression_matrix
         self.genes      = genes
         self.cells      = cells
+        self.expression = expression_matrix
+
+        if isinstance(expression_matrix, scipy.sparse.coo_matrix):
+            self.expression = expression_matrix.tocsc()
+
+        self.pipeline_functions = []
+
+    @property
+    def shape(self):
+        """Shape of expression matrix."""
+        return self.expression.shape
+
+    def astype(self, dtype):
+        self.expression = self.expression.astype(dtype=dtype, copy=False)
+
+        return self
+
+    def columns(self, from_col_ndx=None, to_col_ndx=None):
+        return self.cells[from_col_ndx:to_col_ndx]
+
+    def rows(self, from_row_ndx=None, to_row_ndx=None):
+        return self.genes[from_row_ndx:to_row_ndx]
+
+    def data(self, from_col=None, to_col=None, from_row=None, to_row=None):
+        return self.expression[from_row:to_row, from_col:to_col]
+
+    def data_as_array(self, from_col=None, to_col=None, from_row=None, to_row=None):
+        data_array       = None
+        is_sparse_matrix = (
+               isinstance(self.expression, scipy.sparse.coo_matrix)
+            or isinstance(self.expression, scipy.sparse.csc_matrix)
+        )
+
+        if (is_sparse_matrix):
+            data_array = self.expression[from_row:to_row, from_col:to_col].toarray()
+
+            if data_array.shape[1] == 1:
+                data_array = data_array[:,0]
+
+        elif isinstance(self.expression, numpy.matrix):
+            data_array = self.expression[from_row:to_row, from_col:to_col].getA()
+
+        elif isinstance(self.expression, numpy.ndarray):
+            data_array = self.expression[from_row:to_row, from_col:to_col]
+
+        else:
+            sys.exit(f'Not sure how to convert {type(self.expression)} to numpy.ndarray')
+
+        for fn_pipelined in self.pipeline_functions:
+            data_array = fn_pipelined(data_array)
+
+        return data_array
 
     def subsample_by_counts(self, gene_count=100, cell_count=10):
         if isinstance(self.expression, scipy.sparse.coo_matrix):
@@ -39,34 +147,15 @@ class GeneExpression(object):
 
         return self
 
+    def pipeline_add_cpm_normalization(self):
+        self.pipeline_functions.append(cpm_normalization)
+
     def normalize_expression(self, target_sum=1e6):
         """
-        Note that log1p is called when the gene expression matrix is transposed to genes (obs;
-        rows) x cells (var; cols) to match Bianca's code, but scanpy seems to assume that log1p is
-        given a matrix of cells (obs; rows) x genes (var; cols). See the documentation on the first
-        parameter here:
-            https://scanpy.readthedocs.io/en/stable/api/scanpy.pp.log1p.html#scanpy.pp.log1p
+        By default, calls `cpm_normalization`, which computes the log(CPM + 1).
         """
 
-        # if the gene expression data is in a sparse, coordinate matrix (mtx format), then we can
-        # convert to a Compressed, Sparse Column (csc) matrix to be able to do operations on it.
-        if isinstance(self.expression, scipy.sparse.coo_matrix):
-            self.expression = self.expression.tocsc()
-
-        # Take the log(<count> + 1) for each matrix cell (for each barcode, for each gene) where
-        # each measured gene expression (matrix cell) is normalized by the proportion of total
-        # expressed genes (total count for the barcode or biological cell) to 1 million.
-        # In short, take the log(CPM + 1).
-        normalized_counts = numpy.log1p(
-            # normalize each count for a barcode by the total normalized count for that barcode
-            self.expression / (
-                # normalize total count for each barcode by a million
-                self.expression.sum(axis=0) / target_sum
-            )
-        )
-
-        self.expression = normalized_counts
-
+        self.expression = cpm_normalization(self.expression, target_sum=target_sum)
         return self
 
     def filter_cells_by_annotation(self, ann_data, count_threshold=50):
