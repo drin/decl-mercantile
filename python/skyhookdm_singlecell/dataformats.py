@@ -9,7 +9,6 @@ import logging
 
 # dependencies
 import numpy
-import scipy
 import pyarrow
 import pyarrow.parquet
 import flatbuffers
