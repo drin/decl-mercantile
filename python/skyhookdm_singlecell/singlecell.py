@@ -7,24 +7,24 @@ import scipy
 
 
 def cpm_normalization(expression_data, target_sum=1e6):
-        """
-        Take the log(<count> + 1) for each matrix cell (for each barcode, for each gene) where each
-        measured gene expression (matrix cell) is normalized by the proportion of total expressed
-        genes (total count for the barcode or biological cell) to 1 million.
+    """
+    Take the log(<count> + 1) for each matrix cell (for each barcode, for each gene) where each
+    measured gene expression (matrix cell) is normalized by the proportion of total expressed
+    genes (total count for the barcode or biological cell) to 1 million.
 
-        In short, take the log(CPM + 1).
-        """
+    In short, take the log(CPM + 1).
+    """
 
-        return (
-            numpy.log1p(
-                      # normalize each count for a barcode by the total normalized count for that barcode
-                      expression_data / (
-                          # normalize total count for each barcode by a million
-                          expression_data.sum(axis=0) / target_sum
-                      )
-                  )
-                 .astype(numpy.uint16, copy=False)
-        )
+    # normalization across expression in the single-cell by a million (default)
+    rna_total_normalized = expression_data.sum(axis=0) / target_sum
+
+    # normalize barcode counts by sum of normalized counts for that barcode
+    rna_expression_normalized = expression_data / rna_total_normalized
+
+    return (
+        numpy.log1p(rna_expression_normalized)
+             .astype(numpy.uint16, copy=False)
+    )
 
 
 # ------------------------------
