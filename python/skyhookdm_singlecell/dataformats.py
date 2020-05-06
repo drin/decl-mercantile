@@ -16,7 +16,7 @@ import flatbuffers
 
 # modules from this package
 from skyhookdm_singlecell import skyhook
-from skyhookdm_singlecell.Tables import Table, Record, FB_Meta
+from skyhookdm_singlecell.Tables import FB_Meta
 
 # functions
 from skyhookdm_singlecell.util import batched_indices
@@ -213,7 +213,6 @@ class SkyhookFlatbufferMeta(object):
         builder = flatbuffers.Builder(partial_byte_count + len(binary_arrow_table))
 
         # add the serialized data first (build flatbuffer from back to front)
-        #wrapped_data_blob = builder.CreateByteVector(binary_arrow_table.to_pybytes())
         wrapped_data_blob = builder.CreateByteVector(binary_arrow_table)
 
         # construct the remaining flatbuffer structure
@@ -333,10 +332,10 @@ class SkyhookFileWriter(object):
 
         cls.logger.info('>>> writing data in single arrow file')
         with open(path_to_outfile, 'wb') as arrow_handle:
-                batch_writer = pyarrow.RecordBatchFileWriter(arrow_handle, data_schema)
+            batch_writer = pyarrow.RecordBatchFileWriter(arrow_handle, data_schema)
 
-                for record_batch in data_wrapper.as_arrow_table(data_schema).to_batches():
-                    batch_writer.write_batch(record_batch)
+            for record_batch in data_wrapper.as_arrow_table(data_schema).to_batches():
+                batch_writer.write_batch(record_batch)
 
         cls.logger.info('<<< data written')
 

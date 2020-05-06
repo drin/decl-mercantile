@@ -55,7 +55,10 @@ parsed_args, parsed_extra_args = (
                     )
                    .add_output_file_format_arg(
                          required=True
-                        ,help_str='File format for output files. Supports: "flatbuffer" | "parquet" | "arrow"'
+                        ,help_str=(
+                             'File format for output files. '
+                             'Supports: "flatbuffer" | "parquet" | "arrow"'
+                         )
                     )
                    .add_output_dir_arg(
                          required=False
@@ -240,7 +243,7 @@ if __name__ == '__main__':
         type_for_arrow=pyarrow.string(),
         type_for_skyhook=skyhook.DataTypes.SDT_STRING
     )
-    
+
     # Log analysis after parsing the input file
     parse_time = snapshot_analysis(parsed_args.should_analyze)
 

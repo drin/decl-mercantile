@@ -51,7 +51,7 @@ class RadosConnector(object):
     For details on the rados library, see:
         https://docs.ceph.com/docs/master/rados/api/python/
 
-    For details on how to install the rados library, see ubuntu 18.04 package: 
+    For details on how to install the rados library, see ubuntu 18.04 package:
         python3-rados_12.2.12-0ubuntu0.18.04.5_amd64.deb
 
     """
