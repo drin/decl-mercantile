@@ -3,16 +3,19 @@
 import sys
 import subprocess
 import time
+import datetime
 
 import logging
 import itertools
 
 import pyarrow
+import pandas
+import numpy
 
 from skyhookdm_singlecell import skyhook
 from skyhookdm_singlecell.util import ArgparseBuilder
 from skyhookdm_singlecell.parsers import QueryParser
-from skyhookdm_singlecell.dataformats import arrow_batches_from_binary
+from skyhookdm_singlecell.dataformats import arrow_table_from_binary, arrow_batches_from_binary
 
 
 # ------------------------------
@@ -112,7 +115,7 @@ def execute_query(query_args):
     return cmd_completion.stdout
 
 
-def arrow_table_from_query_response(binary_response, size_width=8):
+def arrow_table_from_query_response(binary_response, size_width=8, show_progress=False):
     """
     Convenience function to call the run-query binary and handle output.
     """
@@ -120,6 +123,11 @@ def arrow_table_from_query_response(binary_response, size_width=8):
     byte_ndx_blob      = 0
     schema_cumulative  = None
     batches_cumulative = None
+
+    if show_progress:
+        query_ndx       = 0
+        conversion_time = 0
+        sys.stderr.write('Parsing query response into arrow table...\n')
 
     # iterate over each partition in the output
     while byte_ndx_blob < len(binary_response):
@@ -131,7 +139,11 @@ def arrow_table_from_query_response(binary_response, size_width=8):
         )
 
         # then, parse the binary into arrow record batches and a schema
-        byte_ndx_blob_end                   = byte_ndx_size + data_size
+        byte_ndx_blob_end = byte_ndx_size + data_size
+
+        # ------------------------------
+        conversion_start = time.time()
+
         partition_schema, partition_batches = arrow_batches_from_binary(
             binary_response[byte_ndx_size:byte_ndx_blob_end]
         )
@@ -148,8 +160,26 @@ def arrow_table_from_query_response(binary_response, size_width=8):
             for partition_field in partition_schema:
                 schema_cumulative = schema_cumulative.append(partition_field)
 
+        conversion_end = time.time()
+        # ------------------------------
+
+        if show_progress:
+            query_ndx       += 1
+            conversion_size  = byte_ndx_blob_end - byte_ndx_blob
+            conversion_time += conversion_end - conversion_start
+            current_time     = datetime.datetime.now().strftime('%H:%M:%S')
+            sys.stderr.write(
+                f'\r[{current_time}] Query Progress: {query_ndx:04d} ({conversion_time:.04f})'
+            )
+
+            sys.stdout.write(f'\tConversion size (bytes)  : {conversion_size}\n')
+            sys.stdout.write(f'\tConversion time (seconds): {conversion_time:.04f}\n')
+
         # move our index in the output forward (aka look at next partition)
         byte_ndx_blob = byte_ndx_blob_end
+
+    if show_progress:
+        sys.stderr.write('\n')
 
     # return the overall, coalesced arrow table
     return pyarrow.Table.from_arrays(
@@ -161,14 +191,84 @@ def arrow_table_from_query_response(binary_response, size_width=8):
     )
 
 
-# ------------------------------
-if __name__ == '__main__':
+def dataframe_from_query_response(binary_response, size_width=8,
+                                  show_progress=False, sparse=False):
+    """
+    Convenience function to call the run-query binary and handle output.
+    """
+
+    byte_ndx_blob        = 0
+    partition_dataframes = []
+
+    if show_progress:
+        query_ndx       = 0
+        conversion_time = 0
+        sys.stderr.write('Parsing query response into pandas dataframe...\n')
+
+    # iterate over each partition in the output
+    while byte_ndx_blob < len(binary_response):
+        # first, peel the blob size
+        byte_ndx_size = byte_ndx_blob + size_width
+        data_size     = int.from_bytes(
+            binary_response[byte_ndx_blob:byte_ndx_size],
+            byteorder='little'
+        )
+
+        # then, parse the binary into arrow record batches and a schema
+        byte_ndx_blob_end = byte_ndx_size + data_size
+        #result_table = arrow_table_from_binary(binary_response[byte_ndx_size:byte_ndx_blob_end])
+        partition_schema, partition_batches = arrow_batches_from_binary(
+            binary_response[byte_ndx_size:byte_ndx_blob_end]
+        )
+
+        # dtype hardcoded for now
+        if sparse:
+            conversion_start = time.time()
+            partition_dataframes.append(pandas.DataFrame(
+                (
+                    pandas.arrays.SparseArray(partition_col, fill_value=0, dtype=numpy.uint16)
+                    for partition_col in partition_batches[0].columns
+                )
+            ))
+            conversion_end = time.time()
+
+        else:
+            conversion_start = time.time()
+            partition_dataframes.append(pandas.DataFrame(partition_batches[0].to_pandas()))
+            conversion_end = time.time()
+
+        if show_progress:
+            query_ndx       += 1
+            conversion_size  = byte_ndx_blob_end - byte_ndx_blob
+            conversion_time += conversion_end - conversion_start
+            current_time     = datetime.datetime.now().strftime('%H:%M:%S')
+            sys.stderr.write(
+                f'\r[{current_time}] Query Progress: {query_ndx:04d} ({conversion_time:.04f})'
+            )
+
+            sys.stdout.write(f'\tConversion size (bytes)  : {conversion_size}\n')
+            sys.stdout.write(f'\tConversion time (seconds): {conversion_time:.04f}\n')
+
+        # move our index in the output forward (aka look at next partition)
+        byte_ndx_blob = byte_ndx_blob_end
+
+    if show_progress:
+        sys.stderr.write('\n')
+
+    # return the overall, coalesced arrow table
+    return pandas.concat(partition_dataframes)
+
+
+def query_skyhook_arrow_table(show_progress=False):
     query_sequence = construct_query_sequence()
 
     query_time, arrow_time, pandas_time = 0, 0, 0
     count_bytes_received = 0
 
-    for query_args in query_sequence:
+    if show_progress:
+        sys.stderr.write('Showing query progress: <partitions queried> (pct of time querying)\n')
+
+    for relational_ndx, query_args in enumerate(query_sequence):
         query_start    = time.time()
         query_response = execute_query(query_args)
         query_end      = time.time()
@@ -183,12 +283,70 @@ if __name__ == '__main__':
         result_table.to_pandas()
         pandas_end   = time.time()
 
-        query_time  += query_end  - query_start
+        query_time  += query_end - query_start
         arrow_time  += arrow_end  - arrow_start
         pandas_time += pandas_end - pandas_start
 
-    print(f'\tQuery  time (seconds): {query_time:.04f}')
+        if show_progress:
+            query_ratio    = query_time / (query_time + arrow_time + pandas_time)
+            current_time   = datetime.datetime.now().strftime('%H:%M:%S')
+            sys.stderr.write(
+                f'\r[{current_time}] Relations queried: {relational_ndx:04d} ({query_ratio:.04f})'
+            )
+
+
+    if show_progress:
+        sys.stderr.write('\n')
+
+    print(f'\tQuery  time            (seconds): {query_time:.04f}')
     print(f'\tArrow  conversion time (seconds): {arrow_time:.04f}')
     print(f'\tPandas conversion time (seconds): {pandas_time:.04f}')
-    print(f'\tTotal  time (seconds): {query_time + arrow_time + pandas_time:.04f}')
+    print(f'\tTotal  time            (seconds): {query_time + arrow_time + pandas_time:.04f}')
+    print(f'\tTotal data received      (bytes): {count_bytes_received}')
+
+
+def query_skyhook_dataframe(show_progress=False, sparse=False):
+    query_sequence = construct_query_sequence()
+
+    query_time, parse_time = 0, 0
+    count_bytes_received   = 0
+
+    if show_progress:
+        sys.stderr.write('Showing query progress: <partitions queried> (pct of time querying)\n')
+
+    for relational_ndx, query_args in enumerate(query_sequence):
+        query_start    = time.time()
+        query_response = execute_query(query_args)
+        query_end      = time.time()
+
+        count_bytes_received += len(query_response)
+
+        parse_start  = time.time()
+        result_table = dataframe_from_query_response(
+            query_response, show_progress=show_progress, sparse=sparse
+        )
+        parse_end    = time.time()
+
+        query_time  += query_end - query_start
+        parse_time  += parse_end - parse_start
+
+        if show_progress:
+            query_ratio    = query_time / (query_time + parse_time)
+            current_time   = datetime.datetime.now().strftime('%H:%M:%S')
+            sys.stderr.write(
+                f'[{current_time}] Relations queried: {relational_ndx:04d} ({query_ratio:.04f})\n'
+            )
+
+    if show_progress:
+        sys.stderr.write('\n')
+
+    print(f'\tQuery      time   (seconds): {query_time:.04f}')
+    print(f'\tConversion time   (seconds): {parse_time:.04f}')
+    print(f'\tTotal      time   (seconds): {query_time + parse_time:.04f}')
     print(f'\tTotal data received (bytes): {count_bytes_received}')
+
+
+# ------------------------------
+if __name__ == '__main__':
+    #query_skyhook_arrow_table(show_progress=True)
+    query_skyhook_dataframe(show_progress=True, sparse=True)
