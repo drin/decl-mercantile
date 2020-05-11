@@ -9,7 +9,6 @@ import logging
 
 # dependencies
 import numpy
-import scipy
 import pyarrow
 import pyarrow.parquet
 import flatbuffers
@@ -66,9 +65,9 @@ class SkyhookDataWrapper(object):
     logger = logging.getLogger('{}.{}'.format(__module__, __name__))
     logger.setLevel(logging.INFO)
 
-    def __init__(self, table_name, domain_dataset, dataset_columns, db_schema='public',
-                 type_for_numpy=numpy.uint16, type_for_arrow=pyarrow.uint16(),
-                 type_for_skyhook=skyhook.DataTypes.SDT_UINT16, **kwargs):
+    def __init__(self, table_name, domain_dataset,
+                 type_for_numpy, type_for_arrow, type_for_skyhook,
+                 db_schema='public',**kwargs):
 
         super().__init__(**kwargs)
 
@@ -78,23 +77,21 @@ class SkyhookDataWrapper(object):
         self.skyhook_type   = type_for_skyhook
 
         self.logger         = self.__class__.logger
-        self.domain_data    = domain_dataset.astype(dtype=self.numpy_type, copy=False)
-        self.dataset_cols   = dataset_columns
+        self.domain_data    = domain_dataset.astype(dtype=self.numpy_type)
 
         # Skyhook metadata
-        self.skyhook_schema = None
         self.db_schema      = db_schema
         self.table_name     = table_name
 
     def table_schema(self, from_col_ndx=None, to_col_ndx=None):
         return pyarrow.schema([
             (column_name, self.arrow_type)
-            for column_name in self.dataset_cols[from_col_ndx:to_col_ndx]
+            for column_name in self.domain_data.columns(from_col_ndx, to_col_ndx)
         ])
 
     def skyhook_data_schema(self, from_col_ndx=0, to_col_ndx=None):
         col_iterator = enumerate(
-            self.dataset_cols[from_col_ndx:to_col_ndx],
+            self.domain_data.columns(from_col_ndx, to_col_ndx),
             start=from_col_ndx
         )
 
@@ -133,28 +130,6 @@ class SkyhookDataWrapper(object):
             self.domain_data.shape[0]
         )
 
-    def as_arrow_recordbatches(self, data_schema, from_col_ndx=None, to_col_ndx=None):
-        """
-        Arrow format assumes that the columns are in the first dimension, not the second dimension.
-
-        So we pass the expression numpy array to pyarrow as a transposed matrix (cells are rows,
-        genes are columns). The schema is a column-based schema (cells).
-        """
-
-        if from_col_ndx is not None and to_col_ndx is not None:
-            data_recordbatches = list(map(
-                numpy.ravel,
-                numpy.hsplit(
-                    self.domain_data[:, from_col_ndx:to_col_ndx].getA(),
-                    to_col_ndx - from_col_ndx
-                )
-            ))
-
-        else:
-            data_recordbatches = self.domain_data.transpose().toarray()
-
-        return pyarrow.RecordBatch.from_arrays(data_recordbatches, schema=data_schema)
-
     def as_arrow_table(self, data_schema):
         """
         Creates an Arrow Table with the given data schema.
@@ -165,18 +140,19 @@ class SkyhookDataWrapper(object):
         """
 
         # Converts a matrix (or ndarray) into a list of 1-d arrays.
-        column_data_arrays = list(
-            map(numpy.ravel, numpy.hsplit(self.domain_data, self.domain_data.shape[1]))
-        )
+        column_data_arrays = list(map(
+            numpy.ravel,
+            numpy.hsplit(self.domain_data.data_as_array(), self.domain_data.shape[1])
+        ))
 
         return pyarrow.Table.from_arrays(column_data_arrays, schema=data_schema)
 
     def as_partitioned_arrow_table(self, start=0, end=None):
-        if end is None: end = self.dataset_cols.shape[0]
-
         # ------------------------------
         # Construct schema for table partition
-        self.logger.info(f'>>> constructing schema for partition ({start}:{end})')
+        self.logger.info('>>> constructing schema for partition ({}:{})'.format(
+            start, end or self.domain_data.shape[1]
+        ))
 
         table_schema_and_meta = (
             self.table_schema(from_col_ndx=start, to_col_ndx=end)
@@ -192,18 +168,16 @@ class SkyhookDataWrapper(object):
         # Get slice of domain data as arrays
         self.logger.info('>>> extracting cell expression slice')
 
-        domain_data_as_array = None
-
-        if isinstance(self.domain_data, scipy.sparse.coo_matrix):
-            domain_data_as_array = self.domain_data.toarray()[:, start:end]
-
-        elif isinstance(self.domain_data, numpy.matrix):
-            domain_data_as_array = self.domain_data[:, start:end].getA()
-
-        elif isinstance(self.domain_data, numpy.ndarray):
-            domain_data_as_array = self.domain_data
+        domain_data_as_array = self.domain_data.data_as_array(from_col=start, to_col=end)
 
         self.logger.info('<<< cell expression slice extracted')
+
+        if len(table_schema_and_meta) != domain_data_as_array.shape[1]:
+            print(f'[ERROR] Columns in schema: {len(table_schema_and_meta)}')
+            print(f'[ERROR] Arrays of data: {domain_data_as_array.shape[1]}')
+
+            print(f'[ERROR]\n\t{table_schema_and_meta}')
+            print(f'[ERROR]\n\t{domain_data_as_array[:5,:5]}')
 
         # Create and return arrow table
         return pyarrow.Table.from_arrays(
@@ -215,7 +189,7 @@ class SkyhookDataWrapper(object):
         )
 
     def batched_table_partitions(self, batch_size=1000, column_count=None):
-        if column_count is None: column_count = self.dataset_cols.shape[0]
+        if column_count is None: column_count = self.domain_data.shape[1]
 
         for batch_id, start, end in batched_indices(column_count, batch_size):
             yield batch_id, self.as_partitioned_arrow_table(start=start, end=end)

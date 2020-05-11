@@ -124,7 +124,7 @@ def parse_input_file(input_dir, files_have_header):
         gene_expr.subsample_by_counts(gene_count=100, cell_count=20)
 
     logger.info('--- normalizing gene expression')
-    gene_expr.normalize_expression()
+    gene_expr.pipeline_add_cpm_normalization()
 
     logger.debug('--- gene expression shape: {}'.format(gene_expr.expression.shape))
     sample = gene_expr.expression[:3]
@@ -195,7 +195,7 @@ def write_data_to_filesystem(data_wrapper, output_file):
 if __name__ == '__main__':
     logger.debug('Parsed command-line arguments:\n{}'.format(
         '\n'.join([
-            f'{arg_name}\t\t: {arg_val}'
+            f'{arg_name:20s}: {arg_val}'
             for arg_name, arg_val in vars(parsed_args).items()
         ])
     ))
@@ -224,18 +224,23 @@ if __name__ == '__main__':
     table_name = os.path.basename(parsed_args.input_dir)
 
     skyhook_expr_wrapper = SkyhookDataWrapper(
-        table_name, gene_expr.expression, gene_expr.cells
+        table_name, gene_expr,
+        type_for_numpy=numpy.uint16,
+        type_for_arrow=pyarrow.uint16(),
+        type_for_skyhook=skyhook.DataTypes.SDT_UINT16
     )
 
     skyhook_gene_wrapper = SkyhookDataWrapper(
-        table_name, gene_ann.annotations, gene_ann.headers,
-        type_for_numpy=numpy.str, type_for_arrow=pyarrow.string(),
+        table_name, gene_ann,
+        type_for_numpy=numpy.str,
+        type_for_arrow=pyarrow.string(),
         type_for_skyhook=skyhook.DataTypes.SDT_STRING
     )
 
     skyhook_cell_wrapper = SkyhookDataWrapper(
-        table_name, cell_ann.annotations, cell_ann.headers,
-        type_for_numpy=numpy.str, type_for_arrow=pyarrow.string(),
+        table_name, cell_ann,
+        type_for_numpy=numpy.str,
+        type_for_arrow=pyarrow.string(),
         type_for_skyhook=skyhook.DataTypes.SDT_STRING
     )
 
