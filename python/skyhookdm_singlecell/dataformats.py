@@ -350,6 +350,19 @@ class SkyhookFileWriter(object):
     logger.setLevel(logging.INFO)
 
     @classmethod
+    def write_to_arrow_from_pandas(cls, data_schema, dataframe, path_to_outfile):
+        output_table = pyarrow.Table.from_pandas(
+            dataframe, schema=data_schema, preserve_index=True
+        )
+        arrow_binary_data = arrow_binary_from_table(output_table)
+
+        cls.logger.info('>>> writing data (pandas) to arrow file')
+        with open(path_to_outfile, 'wb') as output_handle:
+            output_handle.write(arrow_binary_data)
+
+        cls.logger.info('<<< data written')
+
+    @classmethod
     def write_to_arrow(cls, data_wrapper, path_to_outfile):
         data_schema = data_wrapper.table_schema().with_metadata(
             data_wrapper.schema_skyhook_metadata().to_byte_coercible()
