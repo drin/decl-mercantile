@@ -1,0 +1,49 @@
+=> Loading /users/akmontan/.config/fish/env.fish
+-- Fish environment initialized
+=> Loading /users/akmontan/.config/fish/aliases.fish
+Querying 20 objects...
+	Query      time (seconds): 47.0005
+	Conversion time (seconds): 20436.7737
+	Total      time (seconds): 20483.7742
+	Total data received (bytes): 6401541256
+Querying 40 objects...
+	Query      time (seconds): 46.1774
+	Conversion time (seconds): 23593.0169
+	Total      time (seconds): 23639.1943
+	Total data received (bytes): 6401541256
+Querying 60 objects...
+	Query      time (seconds): 46.8695
+	Conversion time (seconds): 20055.5860
+	Total      time (seconds): 20102.4555
+	Total data received (bytes): 6401541256
+Querying 80 objects...
+	Query      time (seconds): 46.1670
+	Conversion time (seconds): 24558.1007
+	Total      time (seconds): 24604.2677
+	Total data received (bytes): 6401541256
+Querying 100 objects...
+	Query      time (seconds): 46.6600
+	Conversion time (seconds): 24463.0975
+	Total      time (seconds): 24509.7575
+	Total data received (bytes): 6401541256
+Querying 120 objects...
+	Query      time (seconds): 46.3673
+	Conversion time (seconds): 23827.8523
+	Total      time (seconds): 23874.2196
+	Total data received (bytes): 6401541256
+Querying 140 objects...
+	Query      time (seconds): 46.1099
+	Conversion time (seconds): 22165.0008
+	Total      time (seconds): 22211.1107
+	Total data received (bytes): 6401541256
+Querying 160 objects...
+	Query      time (seconds): 46.3754
+	Conversion time (seconds): 24112.3894
+	Total      time (seconds): 24158.7648
+	Total data received (bytes): 6401541256
+Querying 180 objects...
+	Query      time (seconds): 46.1781
+	Conversion time (seconds): 20146.1861
+	Total      time (seconds): 20192.3642
+	Total data received (bytes): 6401541256
+Querying 200 objects...

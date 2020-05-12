@@ -1,0 +1,328 @@
+=> Loading /users/akmontan/.config/fish/env.fish
+-- Fish environment initialized
+=> Loading /users/akmontan/.config/fish/aliases.fish
+Querying 10 objects...
+	Conversion size (bytes)  : 12802800
+	Conversion time (seconds): 40.5398
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 80.5372
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 120.9046
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 161.1554
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 200.9234
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 240.8544
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 280.9268
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 320.7226
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 360.4415
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 400.3847
+	Query      time   (seconds): 1.6376
+	Conversion time   (seconds): 400.7783
+	Total      time   (seconds): 402.4158
+	Total data received (bytes): 128028936
+Querying 20 objects...
+	Conversion size (bytes)  : 12802800
+	Conversion time (seconds): 41.2851
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 83.2141
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 125.3169
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 167.2153
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 208.9492
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 250.7906
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 292.0753
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 333.8036
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 375.7900
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 417.4829
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 459.1958
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 500.8705
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 542.6293
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 584.2521
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 625.7785
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 667.2429
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 708.7313
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 750.2588
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 792.0886
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 834.0055
+	Query      time   (seconds): 2.3342
+	Conversion time   (seconds): 834.7823
+	Total      time   (seconds): 837.1165
+	Total data received (bytes): 256059016
+Querying 30 objects...
+	Conversion size (bytes)  : 12802800
+	Conversion time (seconds): 40.5890
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 81.4198
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 122.2397
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 162.7397
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 202.9180
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 243.2944
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 283.3397
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 323.4533
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 363.9801
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 404.4843
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 445.0329
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 485.8230
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 526.3248
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 566.7936
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 607.1796
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 647.7294
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 687.9952
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 728.5943
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 768.9538
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 809.6495
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 850.0888
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 890.5480
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 930.9560
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 971.7078
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1012.3759
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1052.9024
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1093.5023
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1133.8216
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1174.6096
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1215.1849
+	Query      time   (seconds): 3.2280
+	Conversion time   (seconds): 1216.3890
+	Total      time   (seconds): 1219.6169
+	Total data received (bytes): 384089096
+Querying 40 objects...
+	Conversion size (bytes)  : 12802800
+	Conversion time (seconds): 39.1229
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 78.3591
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 117.6985
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 156.8765
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 196.1991
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 235.4373
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 274.4840
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 313.5751
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 352.8051
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 392.2522
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 431.7599
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 471.0889
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 510.6909
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 549.7678
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 589.0060
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 628.1391
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 667.7295
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 707.5339
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 746.6386
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 785.8589
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 825.0518
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 864.2920
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 903.3739
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 943.1735
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 982.8060
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1021.8747
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1061.3387
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1100.6957
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1140.2378
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1179.7683
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1219.3779
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1258.6066
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1298.0744
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1337.5508
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1376.9078
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1416.2455
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1455.8549
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1495.5457
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1535.0287
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1574.6157
+	Query      time   (seconds): 3.8274
+	Conversion time   (seconds): 1575.9661
+	Total      time   (seconds): 1579.7934
+	Total data received (bytes): 512119176
+Querying 50 objects...
+	Conversion size (bytes)  : 12802800
+	Conversion time (seconds): 38.8356
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 78.0477
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 117.0842
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 156.0272
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 194.8990
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 234.0834
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 273.0347
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 312.1114
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 350.9614
+	Conversion size (bytes)  : 12802904
+	Conversion time (seconds): 390.0564
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 429.1942
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 468.4209
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 507.4597
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 546.4656
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 585.3048
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 624.2118
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 663.1025
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 702.0834
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 740.8759
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 779.8499
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 818.9708
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 858.0053
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 897.0811
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 936.4550
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 975.6037
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1014.8057
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1054.0381
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1093.2607
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1132.2157
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1171.2584
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1210.1885
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1249.1536
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1288.5475
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1327.6628
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1366.4733
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1405.5148
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1445.0490
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1484.4960
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1524.0556
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1563.1331
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1602.3454
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1641.9179
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1680.8501
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1719.9630
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1759.1359
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1798.1966
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1837.7494
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1876.4322
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1915.4535
+	Conversion size (bytes)  : 12803008
+	Conversion time (seconds): 1954.6407
+	Query      time   (seconds): 4.5467
+	Conversion time   (seconds): 1956.3315
+	Total      time   (seconds): 1960.8783
+	Total data received (bytes): 640149256
