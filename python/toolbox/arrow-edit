@@ -1,0 +1,56 @@
+#!/usr/bin/env python
+
+import os
+
+import pyarrow
+
+from skyhookdm_singlecell.util import ArgparseBuilder
+from skyhookdm_singlecell.dataformats import SkyhookFileReader, SkyhookFileWriter
+
+# ------------------------------
+# Parse command-line arguments first
+parsed_args, parsed_extra_args = (
+    ArgparseBuilder.with_description('Program for parsing data from binary arrow files')
+                   .add_input_file_arg(
+                         required=True
+                        ,help_str='Path to input arrow file'
+                    )
+                   .add_input_metadata_file_arg(
+                         required=False
+                        ,help_str='Path to metadata for input data'
+                    )
+                   .add_output_file_arg(
+                         required=False
+                        ,help_str='Path to modified arrow file'
+                    )
+                   .parse_args()
+)
+
+# ------------------------------
+if __name__ == '__main__':
+    if not os.path.isfile(parsed_args.input_file):
+        sys.exit(f'Unable to find input file: {parsed_args.input_file}')
+
+    if parsed_args.input_metadata_file and not os.path.isfile(parsed_args.input_metadata_file):
+        sys.exit(f'Unable to find specified metadata file: {parsed_args.input_metadata_file}')
+
+    data_table  = SkyhookFileReader.read_data_file_as_arrow_table(parsed_args.input_file)
+    data_schema = data_table.schema
+    data_frame  = data_table.to_pandas()
+
+    if parsed_args.input_metadata_file and parsed_args.input_metadata_file.endswith('.arrow'):
+        print('Parsing metadata')
+
+        metadata = SkyhookFileReader.read_data_file_as_arrow_table(parsed_args.input_metadata_file)
+        data_frame = data_frame.set_index(metadata.column(0).to_pandas())
+        print(data_frame.index)
+
+    print(data_schema)
+    print(data_frame)
+
+    if parsed_args.output_file:
+        SkyhookFileWriter.write_to_arrow_from_pandas(
+            data_schema=data_schema,
+            dataframe=data_frame,
+            path_to_outfile=parsed_args.output_file
+        )
