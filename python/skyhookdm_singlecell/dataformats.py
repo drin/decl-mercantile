@@ -304,10 +304,12 @@ class SkyhookFileReader(object):
         with open(path_to_infile, 'rb') as input_handle:
             binary_data = input_handle.read()
 
-        flatbuffer_obj = SkyhookFlatbufferMeta.from_binary_flatbuffer(binary_data[4:])
+        flatbuffer_size = int.from_bytes(binary_data[:4], byteorder='little')
+        flatbuffer_obj  = SkyhookFlatbufferMeta.from_binary_flatbuffer(binary_data[4:])
+
         cls.logger.info('<<< data read into arrow table')
 
-        return int.from_bytes(binary_data[:4], byteorder='little'), flatbuffer_obj
+        return flatbuffer_size, flatbuffer_obj
 
     @classmethod
     def read_data_file_as_binary(cls, path_to_infile):
@@ -401,7 +403,7 @@ class SkyhookFileWriter(object):
                 )
             )
 
-            # Serialize flatbuffer structure to disk
+            # Serialize arrow table to binary and write to file
             arrow_binary_data = arrow_binary_from_table(tbl_part)
             with open(path_to_blob, 'wb') as blob_handle:
                 blob_handle.write(arrow_binary_data)
