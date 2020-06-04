@@ -1,0 +1,60 @@
+#!/usr/bin/env python
+
+import os
+
+import numpy
+import pyarrow
+
+# classes
+from skyhookdm_singlecell.util import ArgparseBuilder
+from skyhookdm_singlecell.dataformats import SkyhookFileReader
+
+# functions
+from skyhookdm_singlecell.dataformats import arrow_binary_from_table
+
+# ------------------------------
+# Parse command-line arguments first
+parsed_args, parsed_extra_args = (
+    ArgparseBuilder.with_description('Program for parsing data from binary arrow files')
+                   .add_input_file_arg(
+                         required=True
+                        ,help_str='Path to arrow file (assumed to be gene expression)'
+                    )
+                   .add_output_file_arg(
+                         required=True
+                        ,help_str='Path to file to write binary data'
+                    )
+                   .parse_args()
+)
+
+# ------------------------------
+if __name__ == '__main__':
+    if not os.path.isfile(parsed_args.input_file):
+        sys.exit(f'Could not find file {parsed_args.input_file}')
+
+    data_table = SkyhookFileReader.read_data_file_as_arrow_table(parsed_args.input_file)
+
+    modified_columns = []
+    base_value_range = numpy.array(range(data_table.shape[0]))
+
+    print('Randomizing column data')
+
+    for data_col in data_table.itercolumns():
+        numpy.random.shuffle(base_value_range)
+
+        modified_columns.append(
+              numpy.array(data_col)
+            + base_value_range
+        )
+
+    randomized_data_table = pyarrow.Table.from_arrays(modified_columns, schema=data_table.schema)
+
+    print('Persisting data')
+    with open(parsed_args.output_file, 'wb') as randomized_data_handle:
+        arrow_binary_data = arrow_binary_from_table(randomized_data_table)
+
+        randomized_data_handle.write(arrow_binary_data)
+
+    print('Persisted data:')
+    print(randomized_data_table.schema)
+    print(randomized_data_table.to_pandas())
